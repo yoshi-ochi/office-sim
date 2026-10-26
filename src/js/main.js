@@ -1,10 +1,10 @@
 /**
  * Office Simulator & Training Manual
- * Continuous Collision Detection (2.5s Trigger) Version
+ * Complete Edition with Board System & Continuous Collision Detection
  */
 
 const CONFIG = {
-  GAS_API_URL: "https://script.google.com/macros/s/AKfycbzABRShCDiqn9AdyMOJHHdfRk0Hx-G2YmgvATFi9L868U9wmN186LYtOcJKQ3WwWJMrwQ/exec",
+  GAS_API_URL: "https://script.google.com/macros/s/AKfycbzt5FzmsRpP1qXWNJg8LKzm6NMZ6yhaKS8BxGj481lBz8T2fAk8bY9XOu2RpUrFHXZyjg/exec",
   FIELD_SIZE: 50,
   GRID_SIZE: 0.5,
   GRID_DIVISIONS: 100,
@@ -95,6 +95,31 @@ class SheetService {
     }
   }
 
+  async fetchBoardPosts() {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getBoardPosts`);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) return data;
+      return this.getMockBoardPosts();
+    } catch (e) {
+      return this.getMockBoardPosts();
+    }
+  }
+
+  async saveBoardPost(postData) {
+    try {
+      await fetch(this.apiEndpoint, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "saveBoardPost", post: postData })
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   getMockDictionary() {
     return [
       { term: "稟議書（りんぎしょ）", category: "社内手続き", content: "決裁権限規定に基づく業務購入や契約締結のための社内申請書類。5万円以上の物品購入は自席の内線から総務部へ確認の上、起案します。" },
@@ -108,6 +133,13 @@ class SheetService {
       { id: "wf_01", title: "週次営業進捗レポート配布", description: "営業課長・部長へ進捗書類を届け、サインを受領する。", relatedTaskId: "dist_01" },
       { id: "wf_02", title: "複合機トラブル・用紙詰まり解消", description: "カバーを開けてローラー挟まりを除去し、印刷を復旧させる。", relatedTaskId: "printer_event" },
       { id: "wf_03", title: "総務部備品受取・仕分け", description: "社内電話着信に応答し、2F総務部から備品を引き取る。", relatedTaskId: "phone_event" }
+    ];
+  }
+
+  getMockBoardPosts() {
+    return [
+      { date: "2026/10/26 09:30", author: "総務部", category: "連絡", message: "本日の15:00より空調設備の一斉点検を行います。" },
+      { date: "2026/10/26 11:15", author: "営業推進部", category: "共有", message: "週次営業進捗レポートの提出期限は今週金曜18:00までとなります。" }
     ];
   }
 }
@@ -257,12 +289,21 @@ class FurnitureFactory {
   }
 
   static buildBoard() {
-    const geo = new THREE.BoxGeometry(1.5, 1.0, 0.05);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 1.3;
-    mesh.castShadow = true;
-    return mesh;
+    const group = new THREE.Group();
+    const geo = new THREE.BoxGeometry(1.6, 1.1, 0.06);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 });
+    const frame = new THREE.Mesh(geo, mat);
+    frame.position.y = 1.35;
+    frame.castShadow = true;
+    group.add(frame);
+
+    const faceGeo = new THREE.BoxGeometry(1.48, 0.98, 0.07);
+    const faceMat = new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 });
+    const face = new THREE.Mesh(faceGeo, faceMat);
+    face.position.y = 1.35;
+    group.add(face);
+
+    return group;
   }
 
   static buildBox() {
@@ -311,7 +352,6 @@ class Player {
     return new THREE.Vector3(Math.sin(this.targetRotation), 0, Math.cos(this.targetRotation));
   }
 
-  // obstacleCheck が衝突したオブジェクト自身（または null）を返す
   update(moveVec, delta, obstacleCheck) {
     const len = Math.hypot(moveVec.x, moveVec.y);
     let collidedObject = null;
@@ -351,7 +391,6 @@ class Player {
     }
     this.position.copy(this.mesh.position);
 
-    // 衝突中のオブジェクト（スティック入力がある時のみ）を返す
     return len > 0.05 ? collidedObject : null;
   }
 }
@@ -370,7 +409,6 @@ class OfficeSimApp {
     this.activeTargets = [];
     this.pulseTimer = 0;
 
-    // 衝突滞在検知用
     this.collidingObject = null;
     this.collisionTimer = 0;
     this.isModalActive = false;
@@ -432,7 +470,6 @@ class OfficeSimApp {
     this.camera.lookAt(targetX, 0, targetZ);
   }
 
-  // 衝突判定。当たっているオブジェクト自身を返す
   checkCollision(x, z) {
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
@@ -722,9 +759,8 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
-  // 衝突が2.5秒続いた際に自動発火する処理
+  // 衝突が2.5秒続いた際の発火振り分け
   handleTriggerObject(obj) {
-    // 編集モード中はオブジェクト選択を行う
     if (this.isEditMode) {
       this.selectFurniture(obj);
       return;
@@ -735,6 +771,8 @@ class OfficeSimApp {
       this.triggerPrinter();
     } else if (data.type === 'phone') {
       this.triggerPhone();
+    } else if (data.type === 'board') {
+      this.triggerBoard();
     } else {
       this.showModal(`${data.role} のデスク`, `
         <strong>氏名:</strong> ${data.person}<br>
@@ -742,6 +780,72 @@ class OfficeSimApp {
         <strong>状況:</strong> 通常業務中
       `);
     }
+  }
+
+  // 自席掲示板の表示 & 投稿処理
+  async triggerBoard() {
+    const posts = await this.sheetService.fetchBoardPosts();
+
+    let listHtml = '<div style="max-height: 200px; overflow-y: auto; margin-bottom: 16px; border: 1px solid #cfd8dc; border-radius: 8px; padding: 8px; background: #fafafa;">';
+    posts.slice().reverse().forEach(p => {
+      listHtml += `
+        <div style="border-bottom: 1px solid #e0e0e0; padding: 8px 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #78909c;">
+            <span>[${p.category || '連絡'}] <strong>${p.author || '社員'}</strong></span>
+            <span>${p.date || ''}</span>
+          </div>
+          <div style="color: #37474f; font-size: 13px; margin-top: 4px; line-height: 1.4;">${p.message}</div>
+        </div>
+      `;
+    });
+    listHtml += '</div>';
+
+    const formHtml = `
+      <div style="background: #f0f4f8; padding: 12px; border-radius: 8px;">
+        <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #37474f;">📌 掲示板に新規投稿</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <input type="text" id="board-author" placeholder="氏名" style="flex: 1; padding: 6px 10px; border: 1px solid #b0bec5; border-radius: 6px; font-size: 12px;">
+          <select id="board-category" style="padding: 6px 10px; border: 1px solid #b0bec5; border-radius: 6px; font-size: 12px; background: #fff;">
+            <option value="連絡">連絡</option>
+            <option value="共有">共有</option>
+            <option value="急募">急募</option>
+            <option value="依頼">依頼</option>
+          </select>
+        </div>
+        <textarea id="board-message" placeholder="掲示内容を入力してください..." rows="2" style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #b0bec5; border-radius: 6px; font-size: 12px; resize: none;"></textarea>
+        <div style="text-align: right; margin-top: 8px;">
+          <button id="board-submit-btn" class="btn-dialog btn-primary" style="padding: 6px 14px; font-size: 12px;">掲示板に投稿</button>
+        </div>
+      </div>
+    `;
+
+    this.showModal("📌 自席の業務連絡掲示板", listHtml + formHtml);
+
+    document.getElementById('board-submit-btn')?.addEventListener('click', async () => {
+      const author = document.getElementById('board-author').value.trim() || '社員';
+      const category = document.getElementById('board-category').value;
+      const message = document.getElementById('board-message').value.trim();
+
+      if (!message) {
+        alert("投稿内容を入力してください。");
+        return;
+      }
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      const newPost = {
+        id: `post_${Date.now()}`,
+        date: dateStr,
+        author: author,
+        category: category,
+        message: message
+      };
+
+      await this.sheetService.saveBoardPost(newPost);
+      alert("掲示板に投稿しました！");
+      this.closeModal();
+    });
   }
 
   triggerPrinter() {
@@ -835,25 +939,22 @@ class OfficeSimApp {
     if (this.keys['a'] || this.keys['arrowleft'])  { vx += 0.707; vy -= 0.707; }
     if (this.keys['d'] || this.keys['arrowright']) { vx -= 0.707; vy += 0.707; }
 
-    // 移動および衝突中オブジェクトの取得
     const hitObject = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // --- 2.5秒以上の衝突押し当て判定ロジック ---
+    // 2.5秒以上の衝突押し当て判定
     if (!this.isModalActive && hitObject) {
       if (this.collidingObject === hitObject) {
         this.collisionTimer += delta;
         if (this.collisionTimer >= CONFIG.COLLISION_TRIGGER_TIME) {
           this.handleTriggerObject(hitObject);
-          this.collisionTimer = 0; // 発火後はリセット
+          this.collisionTimer = 0;
         }
       } else {
-        // 別のオブジェクトに接触した場合はタイマー切り替え
         this.collidingObject = hitObject;
         this.collisionTimer = 0;
       }
     } else if (!hitObject) {
-      // 衝突が解除された、またはスティックを離した場合はタイマーリセット
       this.collidingObject = null;
       this.collisionTimer = 0;
     }
