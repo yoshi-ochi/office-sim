@@ -1,0 +1,211 @@
+/* src/css/ui.css */
+
+#ui-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ヘッダー・フロア情報バー */
+.top-nav {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.nav-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  padding: 8px 14px;
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.nav-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+}
+
+.floor-select {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  outline: none;
+}
+
+.btn-mode {
+  border: none;
+  padding: 7px 14px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #4caf50;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+  transition: 0.15s ease;
+}
+
+.btn-mode.active {
+  background: #ff9800;
+}
+
+/* バーチャルジョイスティック (左下) */
+#joystick-zone {
+  position: absolute;
+  bottom: 28px;
+  left: 28px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, rgba(200, 200, 200, 0.15) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  pointer-events: auto;
+  touch-action: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+#joystick-knob {
+  position: absolute;
+  top: 42px;
+  left: 42px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #42a5f5, #1e88e5);
+  box-shadow: 0 4px 10px rgba(30, 136, 229, 0.4);
+  pointer-events: none;
+  transition: transform 0.04s ease-out;
+}
+
+/* 右下アクションボタン群 */
+.action-controls {
+  position: absolute;
+  bottom: 28px;
+  right: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.round-action-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.round-action-btn:active {
+  transform: scale(0.92);
+}
+
+.btn-talk {
+  background: linear-gradient(135deg, #ff7043, #f4511e);
+}
+
+.btn-rotate {
+  background: linear-gradient(135deg, #ab47bc, #8e24aa);
+  display: none; /* 編集モード時のみ表示 */
+}
+
+/* ポップアップモーダル */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-window {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 440px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+  animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+  font-size: 18px;
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 12px;
+  border-bottom: 2px solid #eceff1;
+  padding-bottom: 8px;
+}
+
+.modal-body {
+  font-size: 14px;
+  color: #546e7a;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-dialog {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-close {
+  background: #cfd8dc;
+  color: #37474f;
+}
+
+.btn-primary {
+  background: #1e88e5;
+  color: #fff;
+}

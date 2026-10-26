@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Office Manual & Training Simulator (OfficeSim)</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/ui.css">
+  <style>
+    /* 家具追加パレット */
+    #furniture-palette {
+      position: absolute;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      padding: 10px 14px;
+      border-radius: 24px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+      pointer-events: auto;
+      max-width: 90vw;
+      overflow-x: auto;
+      z-index: 20;
+    }
+    #furniture-palette.active {
+      display: flex;
+    }
+    .palette-btn {
+      background: #f0f4f8;
+      border: 1px solid #cfd8dc;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #37474f;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .palette-btn:hover { background: #e1f5fe; border-color: #81d4fa; }
+    .palette-btn:active { transform: scale(0.95); }
+    .palette-btn.cancel { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-layer">
+    <header class="top-nav">
+      <div class="nav-group">
+        <span class="nav-label">フロア:</span>
+        <select id="floor-select" class="floor-select">
+          <option value="1">1F エントランス・受付</option>
+          <option value="2">2F 総務・人事・経理</option>
+          <option value="3" selected>3F 営業・企画推進部</option>
+          <option value="4">4F DX開発・システム課</option>
+          <option value="5">5F マーケティング・制作</option>
+          <option value="6">6F 会議室・研修室</option>
+          <option value="7">7F 役員フロア</option>
+          <option value="8">8F カフェ・ラウンジ</option>
+        </select>
+      </div>
+
+      <div class="nav-group">
+        <button id="btn-workflow" class="btn-mode" style="background: #0288d1;">業務フロー図</button>
+        <button id="btn-dictionary" class="btn-mode" style="background: #7b1fa2;">辞書(自席)</button>
+        <button id="btn-edit-mode" class="btn-mode">家具配置</button>
+      </div>
+    </header>
+
+    <!-- 家具新規追加パレット -->
+    <div id="furniture-palette">
+      <button class="palette-btn" data-type="desk">+ 机</button>
+      <button class="palette-btn" data-type="chair">+ 椅子</button>
+      <button class="palette-btn" data-type="partition">+ 衝立</button>
+      <button class="palette-btn" data-type="printer">+ 複合機</button>
+      <button class="palette-btn" data-type="locker">+ ロッカー</button>
+      <button class="palette-btn" data-type="phone">+ 内線電話</button>
+      <button class="palette-btn" data-type="board">+ 掲示板</button>
+      <button class="palette-btn cancel" id="btn-palette-close">閉じる</button>
+    </div>
+
+    <!-- バーチャルジョイスティック (左下) -->
+    <div id="joystick-zone">
+      <div id="joystick-knob"></div>
+    </div>
+
+    <!-- アクションコントロール (右下: 調べるボタンを削除し回転ボタンのみ配置) -->
+    <div class="action-controls">
+      <button id="rotate-btn" class="round-action-btn btn-rotate" title="家具を90度回転">回転</button>
+    </div>
+
+    <!-- ポップアップモーダル -->
+    <div id="info-modal" class="modal-overlay">
+      <div class="modal-window">
+        <div id="modal-title" class="modal-header">インフォメーション</div>
+        <div id="modal-content" class="modal-body">内容がここに表示されます。</div>
+        <div class="modal-footer">
+          <button id="modal-close-btn" class="btn-dialog btn-close">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
