@@ -9,7 +9,7 @@ export const CONFIG = {
   CAMERA_DISTANCE: 18,
   CAMERA_ELEVATION: 22,
   CAMERA_VIEW_SIZE: 12,
-  GAS_API_URL: "https://script.google.com/macros/s/AKfycbz_XXXXXXXXX/exec",
+  GAS_API_URL: "https://script.google.com/macros/s/AKfycbzjOakTpi9SBII8IYt-G-uoBOhHzN8YfrPx3Yt861SVu_h3tgIvHahyKyIr2QcsCLgDRg/exec",
 
   FLOORS: [
     { id: 1, name: "1F エントランス・受付・新聞室", color: 0xe8ecef },
