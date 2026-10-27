@@ -1,8 +1,8 @@
 // src/js/main.js
-import { CONFIG } from './config.js';
-import { SheetService } from './services/SheetService.js';
-import { FurnitureFactory } from './entities/Furniture.js';
-import { Player } from './entities/Player.js';
+import { CONFIG } from './config.js?v=3';
+import { SheetService } from './services/SheetService.js?v=3';
+import { FurnitureFactory } from './entities/Furniture.js?v=3';
+import { Player } from './entities/Player.js?v=3';
 
 class OfficeSimApp {
   constructor() {
@@ -344,7 +344,7 @@ class OfficeSimApp {
       this.showModal(`📊 ${this.currentUser.name} さんの受講・実績履歴`, html);
     });
 
-    // 5. リサイズ & キーボード入力
+    // 5. リサイズ & キーボード入力 (安全なガード処理)
     window.addEventListener('resize', () => {
       const aspect = window.innerWidth / window.innerHeight;
       const d = CONFIG.CAMERA_VIEW_SIZE;
@@ -356,8 +356,17 @@ class OfficeSimApp {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    window.addEventListener('keydown', e => { this.keys[e.key.toLowerCase()] = true; });
-    window.addEventListener('keyup', e => { this.keys[e.key.toLowerCase()] = false; });
+    window.addEventListener('keydown', e => {
+      if (e && e.key) {
+        this.keys[e.key.toLowerCase()] = true;
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e && e.key) {
+        this.keys[e.key.toLowerCase()] = false;
+      }
+    });
 
     // 6. バーチャルジョイスティック
     const zone = document.getElementById('joystick-zone');
