@@ -1,25 +1,22 @@
 // src/js/config.js
-
 export const CONFIG = {
-  // フィールド設定
-  FIELD_SIZE: 50,          // 50m四方
-  GRID_SIZE: 0.5,          // 50cmグリッド
-  GRID_DIVISIONS: 100,     // 50 / 0.5 = 100分割
+  GAS_API_URL: "https://script.google.com/macros/s/AKfycbycEuOtzZi1dA_x8oFxlWP2njOUn6kplaa9b4iW-0d5ZAvl9s7qoiqyydEovgEyQp5-IA/exec",
+  FIELD_SIZE: 50,
+  GRID_SIZE: 0.5,
+  GRID_DIVISIONS: 100,
+  MOVE_SPEED: 7.5,
+  ROTATION_SPEED: 14.0,
+  CAMERA_VIEW_SIZE: 14,
+  CAMERA_ELEVATION: 30,
+  CAMERA_DISTANCE: 26,
+  PLAYER_RADIUS: 0.35,
 
-  // キャラクター移動設定
-  MOVE_SPEED: 7.5,         // 移動速度 (m/s)
-  ROTATION_SPEED: 14.0,    // キャラクタ旋回速度
-  INTERACTION_DISTANCE: 2.0,// 話しかける/調べる判定距離 (m)
+  // 衝突によるポップアップ発火の所要時間（秒）
+  COLLISION_TRIGGER_TIME: 2.5,
 
-  // カメラ設定 (Orthographic / アイソメトリック)
-  CAMERA_VIEW_SIZE: 14,    // ズーム視野範囲
-  CAMERA_ELEVATION: 30,    // 高さ
-  CAMERA_DISTANCE: 26,     // オフセット距離
-
-  // 階層定義 (全8階)
   FLOORS: [
-    { id: 1, name: "1F エントランス・総合受付", color: 0xe8eaf6 },
-    { id: 2, name: "2F 総務部・人事部・経理部", color: 0xe0f2f1 },
+    { id: 1, name: "1F エントランス・受付", color: 0xe8eaf6 },
+    { id: 2, name: "2F 総務・人事・経理部", color: 0xe0f2f1 },
     { id: 3, name: "3F 営業本部・企画推進部", color: 0xf5f5f0 },
     { id: 4, name: "4F DX開発部・システム課", color: 0xe3f2fd },
     { id: 5, name: "5F マーケティング・制作部", color: 0xfce4ec },
@@ -28,7 +25,6 @@ export const CONFIG = {
     { id: 8, name: "8F カフェ・リフレッシュラウンジ", color: 0xf1f8e9 }
   ],
 
-  // 配布物マニュアル用（10種）
   DISTRIBUTIONS: [
     { id: "dist_01", title: "週次営業進捗レポート", targetRoles: ["課長", "部長"] },
     { id: "dist_02", title: "社内セキュリティ監査通知", targetRoles: ["全員"] },

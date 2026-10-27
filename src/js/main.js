@@ -1,399 +1,8 @@
-/**
- * Office Simulator & Training Manual
- * Complete Edition with Board System & Continuous Collision Detection
- */
-
-const CONFIG = {
-  GAS_API_URL: "https://script.google.com/macros/s/AKfycbzt5FzmsRpP1qXWNJg8LKzm6NMZ6yhaKS8BxGj481lBz8T2fAk8bY9XOu2RpUrFHXZyjg/exec",
-  FIELD_SIZE: 50,
-  GRID_SIZE: 0.5,
-  GRID_DIVISIONS: 100,
-  MOVE_SPEED: 7.5,
-  ROTATION_SPEED: 14.0,
-  CAMERA_VIEW_SIZE: 14,
-  CAMERA_ELEVATION: 30,
-  CAMERA_DISTANCE: 26,
-  PLAYER_RADIUS: 0.35,
-
-  // 衝突によるポップアップ発火の所要時間（秒）
-  COLLISION_TRIGGER_TIME: 2.5,
-
-  FLOORS: [
-    { id: 1, name: "1F エントランス・受付", color: 0xe8eaf6 },
-    { id: 2, name: "2F 総務・人事・経理部", color: 0xe0f2f1 },
-    { id: 3, name: "3F 営業本部・企画推進部", color: 0xf5f5f0 },
-    { id: 4, name: "4F DX開発部・システム課", color: 0xe3f2fd },
-    { id: 5, name: "5F マーケティング・制作部", color: 0xfce4ec },
-    { id: 6, name: "6F 会議室・セミナールーム", color: 0xfff3e0 },
-    { id: 7, name: "7F 役員フロア・特別応接室", color: 0xefebe9 },
-    { id: 8, name: "8F カフェ・リフレッシュラウンジ", color: 0xf1f8e9 }
-  ],
-
-  DISTRIBUTIONS: [
-    { id: "dist_01", title: "週次営業進捗レポート", targetRoles: ["課長", "部長"] },
-    { id: "dist_02", title: "社内セキュリティ監査通知", targetRoles: ["全員"] },
-    { id: "dist_03", title: "健康診断案内票", targetRoles: ["全員"] },
-    { id: "dist_04", title: "月次勤怠締め切り通知書", targetRoles: ["リーダー"] },
-    { id: "dist_05", title: "新規プロジェクト要件概要", targetRoles: ["開発", "企画"] },
-    { id: "dist_06", title: "備品発注承認依頼シート", targetRoles: ["課長"] },
-    { id: "dist_07", title: "防災訓練手順チェック表", targetRoles: ["フロア責任者"] },
-    { id: "dist_08", title: "郵便・宅配便受領サイン用紙", targetRoles: ["総務"] },
-    { id: "dist_09", title: "新任研修アンケート", targetRoles: ["新入社員"] },
-    { id: "dist_10", title: "役員会議事録", targetRoles: ["役員"] }
-  ]
-};
-
-class SheetService {
-  constructor(apiEndpoint) {
-    this.apiEndpoint = apiEndpoint;
-  }
-
-  async fetchDictionary() {
-    try {
-      const res = await fetch(`${this.apiEndpoint}?action=getDictionary`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-      return this.getMockDictionary();
-    } catch (e) {
-      return this.getMockDictionary();
-    }
-  }
-
-  async fetchWorkflows() {
-    try {
-      const res = await fetch(`${this.apiEndpoint}?action=getWorkflows`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-      return this.getMockWorkflows();
-    } catch (e) {
-      return this.getMockWorkflows();
-    }
-  }
-
-  async fetchFloorLayout(floorId) {
-    try {
-      const res = await fetch(`${this.apiEndpoint}?action=getLayout&floor=${floorId}`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  async saveFloorLayout(floorId, items) {
-    try {
-      await fetch(this.apiEndpoint, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "saveLayout", floor: floorId, items: items })
-      });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  async fetchBoardPosts() {
-    try {
-      const res = await fetch(`${this.apiEndpoint}?action=getBoardPosts`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-      return this.getMockBoardPosts();
-    } catch (e) {
-      return this.getMockBoardPosts();
-    }
-  }
-
-  async saveBoardPost(postData) {
-    try {
-      await fetch(this.apiEndpoint, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "saveBoardPost", post: postData })
-      });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  getMockDictionary() {
-    return [
-      { term: "稟議書（りんぎしょ）", category: "社内手続き", content: "決裁権限規定に基づく業務購入や契約締結のための社内申請書類。5万円以上の物品購入は自席の内線から総務部へ確認の上、起案します。" },
-      { term: "複合機トナー交換手順", category: "オフィス機器", content: "各階複合機のトナーが切れた場合、備品棚から同一型番を取得し、レバーロックを解除して水平に抜き差しします。" },
-      { term: "セキュリティカード紛失時対応", category: "セキュリティ", content: "即座に1F防災センターへ連絡しカードアクセスを失効させてください。" }
-    ];
-  }
-
-  getMockWorkflows() {
-    return [
-      { id: "wf_01", title: "週次営業進捗レポート配布", description: "営業課長・部長へ進捗書類を届け、サインを受領する。", relatedTaskId: "dist_01" },
-      { id: "wf_02", title: "複合機トラブル・用紙詰まり解消", description: "カバーを開けてローラー挟まりを除去し、印刷を復旧させる。", relatedTaskId: "printer_event" },
-      { id: "wf_03", title: "総務部備品受取・仕分け", description: "社内電話着信に応答し、2F総務部から備品を引き取る。", relatedTaskId: "phone_event" }
-    ];
-  }
-
-  getMockBoardPosts() {
-    return [
-      { date: "2026/10/26 09:30", author: "総務部", category: "連絡", message: "本日の15:00より空調設備の一斉点検を行います。" },
-      { date: "2026/10/26 11:15", author: "営業推進部", category: "共有", message: "週次営業進捗レポートの提出期限は今週金曜18:00までとなります。" }
-    ];
-  }
-}
-
-class FurnitureFactory {
-  static create(type, data = {}) {
-    const group = new THREE.Group();
-    group.name = `furniture_${type}_${Date.now()}`;
-    group.userData = {
-      type: type,
-      gridX: parseFloat(data.x) || 0,
-      gridZ: parseFloat(data.z) || 0,
-      role: data.role || (type === 'desk' ? '社員' : '共用備品'),
-      person: data.person || '未設定',
-      task: data.task || 'なし',
-      distNeeded: data.distNeeded || null,
-      isMySeat: !!data.isMySeat,
-      isPrinter: !!data.isPrinter || type === 'printer',
-      collisionRadius: (type === 'partition' || type === 'phone') ? 0.35 : 0.65
-    };
-
-    let mesh;
-    switch (type) {
-      case 'desk': mesh = this.buildDesk(group.userData.isMySeat); break;
-      case 'chair': mesh = this.buildChair(); break;
-      case 'partition': mesh = this.buildPartition(); break;
-      case 'printer': mesh = this.buildPrinter(); break;
-      case 'locker': mesh = this.buildLocker(); break;
-      case 'phone': mesh = this.buildPhone(); break;
-      case 'board': mesh = this.buildBoard(); break;
-      default: mesh = this.buildBox(); break;
-    }
-    group.add(mesh);
-
-    const redDotGeo = new THREE.SphereGeometry(0.22, 16, 16);
-    const redDotMat = new THREE.MeshBasicMaterial({ color: 0xff1744 });
-    const redDot = new THREE.Mesh(redDotGeo, redDotMat);
-    redDot.position.set(0, 1.8, 0);
-    redDot.visible = false;
-    group.add(redDot);
-    group.userData.redDot = redDot;
-
-    group.position.set(
-      Math.round((parseFloat(data.x) || 0) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE,
-      0,
-      Math.round((parseFloat(data.z) || 0) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE
-    );
-    group.rotation.y = parseFloat(data.rotation) || 0;
-
-    return group;
-  }
-
-  static buildDesk(isMySeat) {
-    const group = new THREE.Group();
-    const topGeo = new THREE.BoxGeometry(1.4, 0.05, 0.8);
-    const topMat = new THREE.MeshStandardMaterial({ color: isMySeat ? 0x64b5f6 : 0xd7ccc8, roughness: 0.4 });
-    const top = new THREE.Mesh(topGeo, topMat);
-    top.position.y = 0.72;
-    top.castShadow = true;
-    top.receiveShadow = true;
-    group.add(top);
-
-    const legGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8);
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x455a64 });
-    [[-0.62, -0.32], [0.62, -0.32], [-0.62, 0.32], [0.62, 0.32]].forEach(([x, z]) => {
-      const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(x, 0.35, z);
-      leg.castShadow = true;
-      group.add(leg);
-    });
-
-    const monGeo = new THREE.BoxGeometry(0.5, 0.3, 0.04);
-    const monMat = new THREE.MeshStandardMaterial({ color: 0x212121 });
-    const mon = new THREE.Mesh(monGeo, monMat);
-    mon.position.set(0, 0.95, -0.2);
-    mon.castShadow = true;
-    group.add(mon);
-
-    return group;
-  }
-
-  static buildChair() {
-    const group = new THREE.Group();
-    const seatGeo = new THREE.BoxGeometry(0.48, 0.06, 0.48);
-    const seatMat = new THREE.MeshStandardMaterial({ color: 0x37474f });
-    const seat = new THREE.Mesh(seatGeo, seatMat);
-    seat.position.y = 0.45;
-    seat.castShadow = true;
-    group.add(seat);
-
-    const backGeo = new THREE.BoxGeometry(0.48, 0.45, 0.05);
-    const back = new THREE.Mesh(backGeo, seatMat);
-    back.position.set(0, 0.7, -0.22);
-    back.castShadow = true;
-    group.add(back);
-
-    const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8);
-    const pole = new THREE.Mesh(poleGeo, seatMat);
-    pole.position.y = 0.21;
-    group.add(pole);
-
-    return group;
-  }
-
-  static buildPartition() {
-    const geo = new THREE.BoxGeometry(1.2, 1.4, 0.06);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x90a4ae });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.7;
-    mesh.castShadow = true;
-    return mesh;
-  }
-
-  static buildPrinter() {
-    const group = new THREE.Group();
-    const bodyGeo = new THREE.BoxGeometry(0.9, 0.95, 0.8);
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0.48;
-    body.castShadow = true;
-    group.add(body);
-
-    const panelGeo = new THREE.BoxGeometry(0.4, 0.06, 0.25);
-    const panelMat = new THREE.MeshStandardMaterial({ color: 0x1976d2 });
-    const panel = new THREE.Mesh(panelGeo, panelMat);
-    panel.position.set(0.15, 0.98, 0.2);
-    group.add(panel);
-
-    return group;
-  }
-
-  static buildLocker() {
-    const geo = new THREE.BoxGeometry(0.9, 1.8, 0.5);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xb0bec5 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.9;
-    mesh.castShadow = true;
-    return mesh;
-  }
-
-  static buildPhone() {
-    const geo = new THREE.BoxGeometry(0.25, 0.1, 0.25);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x455a64 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.75;
-    return mesh;
-  }
-
-  static buildBoard() {
-    const group = new THREE.Group();
-    const geo = new THREE.BoxGeometry(1.6, 1.1, 0.06);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 });
-    const frame = new THREE.Mesh(geo, mat);
-    frame.position.y = 1.35;
-    frame.castShadow = true;
-    group.add(frame);
-
-    const faceGeo = new THREE.BoxGeometry(1.48, 0.98, 0.07);
-    const faceMat = new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 });
-    const face = new THREE.Mesh(faceGeo, faceMat);
-    face.position.y = 1.35;
-    group.add(face);
-
-    return group;
-  }
-
-  static buildBox() {
-    const geo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xffb74d });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.4;
-    return mesh;
-  }
-}
-
-class Player {
-  constructor(scene) {
-    this.scene = scene;
-    this.mesh = new THREE.Group();
-    this.position = new THREE.Vector3(0, 0, 0);
-    this.targetRotation = 0;
-    this.bounceTimer = 0;
-
-    const headGeo = new THREE.SphereGeometry(0.35, 24, 24);
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xe53935, roughness: 0.2 });
-    this.head = new THREE.Mesh(headGeo, headMat);
-    this.head.position.y = 1.35;
-    this.head.castShadow = true;
-    this.mesh.add(this.head);
-
-    const coneGeo = new THREE.ConeGeometry(0.28, 0.9, 24);
-    const coneMat = new THREE.MeshStandardMaterial({ color: 0xc62828 });
-    this.body = new THREE.Mesh(coneGeo, coneMat);
-    this.body.rotation.x = Math.PI;
-    this.body.position.y = 0.7;
-    this.body.castShadow = true;
-    this.mesh.add(this.body);
-
-    const shadowGeo = new THREE.RingGeometry(0.05, 0.35, 16);
-    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
-    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = 0.02;
-    this.mesh.add(shadow);
-
-    this.scene.add(this.mesh);
-  }
-
-  getForwardVector() {
-    return new THREE.Vector3(Math.sin(this.targetRotation), 0, Math.cos(this.targetRotation));
-  }
-
-  update(moveVec, delta, obstacleCheck) {
-    const len = Math.hypot(moveVec.x, moveVec.y);
-    let collidedObject = null;
-
-    if (len > 0.05) {
-      const normX = moveVec.x / Math.max(1, len);
-      const normZ = moveVec.y / Math.max(1, len);
-      const moveDist = CONFIG.MOVE_SPEED * Math.min(len, 1.0) * delta;
-
-      const nextX = this.mesh.position.x + normX * moveDist;
-      const hitX = obstacleCheck(nextX, this.mesh.position.z);
-      if (!hitX) {
-        const half = (CONFIG.FIELD_SIZE / 2) - 1.0;
-        this.mesh.position.x = Math.max(-half, Math.min(half, nextX));
-      } else {
-        collidedObject = hitX;
-      }
-
-      const nextZ = this.mesh.position.z + normZ * moveDist;
-      const hitZ = obstacleCheck(this.mesh.position.x, nextZ);
-      if (!hitZ) {
-        const half = (CONFIG.FIELD_SIZE / 2) - 1.0;
-        this.mesh.position.z = Math.max(-half, Math.min(half, nextZ));
-      } else {
-        collidedObject = hitZ;
-      }
-
-      this.targetRotation = Math.atan2(normX, normZ);
-      this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, this.targetRotation, CONFIG.ROTATION_SPEED * delta);
-
-      this.bounceTimer += delta * 15;
-      this.head.position.y = 1.35 + Math.sin(this.bounceTimer) * 0.06;
-      this.body.position.y = 0.7 + Math.sin(this.bounceTimer) * 0.03;
-    } else {
-      this.head.position.y = THREE.MathUtils.lerp(this.head.position.y, 1.35, delta * 10);
-      this.body.position.y = THREE.MathUtils.lerp(this.body.position.y, 0.7, delta * 10);
-    }
-    this.position.copy(this.mesh.position);
-
-    return len > 0.05 ? collidedObject : null;
-  }
-}
+// src/js/main.js
+import { CONFIG } from './config.js';
+import { SheetService } from './services/SheetService.js';
+import { FurnitureFactory } from './entities/Furniture.js';
+import { Player } from './entities/Player.js';
 
 class OfficeSimApp {
   constructor() {
@@ -412,6 +21,11 @@ class OfficeSimApp {
     this.collidingObject = null;
     this.collisionTimer = 0;
     this.isModalActive = false;
+
+    this.chatChannel = 'all';
+    this.chatTarget = 'all';
+    this.myUserName = '社員（自分）';
+    this.chatPollInterval = null;
 
     this.clock = new THREE.Clock();
     this.raycaster = new THREE.Raycaster();
@@ -576,6 +190,59 @@ class OfficeSimApp {
     }
   }
 
+  async loadChatMessages() {
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+
+    const messages = await this.sheetService.fetchChatMessages(this.chatChannel, this.chatTarget);
+    container.innerHTML = '';
+
+    messages.forEach(m => {
+      const isSelf = m.senderName === this.myUserName;
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `chat-msg ${isSelf ? 'self' : 'other'}`;
+      msgDiv.innerHTML = `
+        <div class="chat-msg-meta">${m.senderName} • ${m.timestamp}</div>
+        <div>${m.message}</div>
+      `;
+      container.appendChild(msgDiv);
+    });
+
+    container.scrollTop = container.scrollHeight;
+  }
+
+  async sendCurrentChatMessage() {
+    const input = document.getElementById('chat-input-text');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const msgObj = {
+      id: `msg_${Date.now()}`,
+      timestamp: timeStr,
+      channelType: this.chatChannel,
+      channelTarget: this.chatTarget,
+      senderName: this.myUserName,
+      message: text
+    };
+
+    input.value = '';
+    const container = document.getElementById('chat-messages');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-msg self';
+    msgDiv.innerHTML = `
+      <div class="chat-msg-meta">${msgObj.senderName} • ${msgObj.timestamp}</div>
+      <div>${msgObj.message}</div>
+    `;
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+
+    await this.sheetService.sendChatMessage(msgObj);
+  }
+
   setupEvents() {
     window.addEventListener('resize', () => {
       const aspect = window.innerWidth / window.innerHeight;
@@ -591,7 +258,6 @@ class OfficeSimApp {
     window.addEventListener('keydown', e => { this.keys[e.key.toLowerCase()] = true; });
     window.addEventListener('keyup', e => { this.keys[e.key.toLowerCase()] = false; });
 
-    // バーチャルジョイスティック
     const zone = document.getElementById('joystick-zone');
     const knob = document.getElementById('joystick-knob');
     let active = false, startX = 0, startY = 0;
@@ -634,9 +300,44 @@ class OfficeSimApp {
       this.currentFloor = parseInt(e.target.value, 10);
       this.loadFloor(this.currentFloor);
       this.cancelTraining();
+      if (this.chatChannel === 'floor') {
+        this.chatTarget = String(this.currentFloor);
+        this.loadChatMessages();
+      }
     });
 
-    // 編集モード切替
+    const chatDrawer = document.getElementById('chat-drawer');
+    document.getElementById('btn-chat-toggle')?.addEventListener('click', () => {
+      chatDrawer.classList.add('open');
+      this.loadChatMessages();
+      if (!this.chatPollInterval) {
+        this.chatPollInterval = setInterval(() => this.loadChatMessages(), 5000);
+      }
+    });
+
+    document.getElementById('btn-chat-close')?.addEventListener('click', () => {
+      chatDrawer.classList.remove('open');
+      if (this.chatPollInterval) {
+        clearInterval(this.chatPollInterval);
+        this.chatPollInterval = null;
+      }
+    });
+
+    document.querySelectorAll('.chat-tab-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        document.querySelectorAll('.chat-tab-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        this.chatChannel = e.target.getAttribute('data-channel');
+        this.chatTarget = this.chatChannel === 'floor' ? String(this.currentFloor) : 'all';
+        this.loadChatMessages();
+      });
+    });
+
+    document.getElementById('chat-send-btn')?.addEventListener('click', () => this.sendCurrentChatMessage());
+    document.getElementById('chat-input-text')?.addEventListener('keypress', e => {
+      if (e.key === 'Enter') this.sendCurrentChatMessage();
+    });
+
     const editBtn = document.getElementById('btn-edit-mode');
     const rotateBtn = document.getElementById('rotate-btn');
     const palette = document.getElementById('furniture-palette');
@@ -659,7 +360,6 @@ class OfficeSimApp {
       }
     });
 
-    // パレットボタン
     document.querySelectorAll('.palette-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         const type = e.target.getAttribute('data-type');
@@ -673,7 +373,6 @@ class OfficeSimApp {
       if (palette) palette.classList.remove('active');
     });
 
-    // 回転
     rotateBtn?.addEventListener('click', () => {
       if (this.selectedObject) {
         this.selectedObject.rotation.y += Math.PI / 2;
@@ -681,7 +380,6 @@ class OfficeSimApp {
       }
     });
 
-    // 家具ドラッグ操作
     const dom = this.renderer.domElement;
     dom.addEventListener('pointerdown', e => {
       if (!this.isEditMode) return;
@@ -717,7 +415,6 @@ class OfficeSimApp {
 
     window.addEventListener('pointerup', () => { this.isDragging = false; });
 
-    // 辞書
     document.getElementById('btn-dictionary')?.addEventListener('click', async () => {
       const terms = await this.sheetService.fetchDictionary();
       let html = '<div style="max-height: 280px; overflow-y: auto;">';
@@ -731,7 +428,6 @@ class OfficeSimApp {
       this.showModal("📖 社内マニュアル・用語辞書 (自席参照)", html);
     });
 
-    // 業務フロー
     document.getElementById('btn-workflow')?.addEventListener('click', async () => {
       const flows = await this.sheetService.fetchWorkflows();
       let html = '<p style="margin-bottom: 10px; font-size: 12px; color: #757575;">フローをタップすると、該当のシミュレーション業務が起動します。</p>';
@@ -759,7 +455,6 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
-  // 衝突が2.5秒続いた際の発火振り分け
   handleTriggerObject(obj) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
@@ -782,7 +477,6 @@ class OfficeSimApp {
     }
   }
 
-  // 自席掲示板の表示 & 投稿処理
   async triggerBoard() {
     const posts = await this.sheetService.fetchBoardPosts();
 
@@ -942,7 +636,6 @@ class OfficeSimApp {
     const hitObject = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // 2.5秒以上の衝突押し当て判定
     if (!this.isModalActive && hitObject) {
       if (this.collidingObject === hitObject) {
         this.collisionTimer += delta;
@@ -959,7 +652,6 @@ class OfficeSimApp {
       this.collisionTimer = 0;
     }
 
-    // 配布物トレーニング判定
     if (this.activeTargets.length > 0) {
       this.pulseTimer += delta * 6;
       const s = 1.0 + Math.sin(this.pulseTimer) * 0.25;
