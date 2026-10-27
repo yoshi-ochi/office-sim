@@ -1,9 +1,160 @@
 // src/js/main.js
-import { CONFIG } from './config.js?v=3';
-import { SheetService } from './services/SheetService.js?v=3';
-import { FurnitureFactory } from './entities/Furniture.js?v=3';
-import { Player } from './entities/Player.js?v=3';
+import { CONFIG } from './config.js';
+import { FurnitureFactory } from './entities/Furniture.js';
+import { Player } from './entities/Player.js';
 
+/**
+ * 通信・認証サービスクラス（キャッシュ不整合防止のためmain.jsに統合）
+ */
+class SheetService {
+  constructor(apiEndpoint) {
+    this.apiEndpoint = apiEndpoint;
+  }
+
+  async postToGas(payload) {
+    try {
+      const res = await fetch(this.apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn("GAS通信エラー:", e);
+      return null;
+    }
+  }
+
+  async hashPassword(password, salt) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + ":" + salt.toLowerCase());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async checkEmail(email) {
+    return await this.postToGas({ action: "checkEmail", email });
+  }
+
+  async verifyPassword(email, rawPassword) {
+    const hash = await this.hashPassword(rawPassword, email);
+    const res = await this.postToGas({ action: "verifyPassword", email, passwordHash: hash });
+    return res || { status: "fail", message: "認証通信に失敗しました。" };
+  }
+
+  async setPassword(email, rawPassword) {
+    const hash = await this.hashPassword(rawPassword, email);
+    return await this.postToGas({ action: "setPassword", email, passwordHash: hash });
+  }
+
+  async fetchDictionary() {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getDictionary`);
+      const data = await res.json();
+      return (Array.isArray(data) && data.length > 0) ? data : this.getMockDictionary();
+    } catch {
+      return this.getMockDictionary();
+    }
+  }
+
+  async fetchWorkflows() {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getWorkflows`);
+      const data = await res.json();
+      return (Array.isArray(data) && data.length > 0) ? data : this.getMockWorkflows();
+    } catch {
+      return this.getMockWorkflows();
+    }
+  }
+
+  async fetchFloorLayout(floorId) {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getLayout&floor=${floorId}`);
+      const data = await res.json();
+      return (Array.isArray(data) && data.length > 0) ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveFloorLayout(floorId, items) {
+    return await this.postToGas({ action: "saveLayout", floor: floorId, items });
+  }
+
+  async fetchBoardPosts() {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getBoardPosts`);
+      const data = await res.json();
+      return (Array.isArray(data) && data.length > 0) ? data : this.getMockBoardPosts();
+    } catch {
+      return this.getMockBoardPosts();
+    }
+  }
+
+  async saveBoardPost(postData) {
+    return await this.postToGas({ action: "saveBoardPost", post: postData });
+  }
+
+  async fetchChatMessages(channelType, channelTarget) {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getChatMessages&channelType=${channelType}&channelTarget=${channelTarget}`);
+      const data = await res.json();
+      return (Array.isArray(data) && data.length > 0) ? data : this.getMockChatMessages(channelType);
+    } catch {
+      return this.getMockChatMessages(channelType);
+    }
+  }
+
+  async sendChatMessage(msgData) {
+    return await this.postToGas({ action: "sendChatMessage", message: msgData });
+  }
+
+  async fetchTrainingLogs() {
+    try {
+      const res = await fetch(`${this.apiEndpoint}?action=getTrainingLogs`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async saveTrainingLog(logData) {
+    return await this.postToGas({ action: "saveTrainingLog", log: logData });
+  }
+
+  getMockDictionary() {
+    return [
+      { term: "稟議書（りんぎしょ）", category: "社内手続き", content: "決裁権限規定に基づく業務購入や契約締結のための社内申請書類。" },
+      { term: "複合機トナー交換手順", category: "オフィス機器", content: "各階複合機のトナーが切れた場合、備品棚から同一型番を取得し交換します。" }
+    ];
+  }
+
+  getMockWorkflows() {
+    return [
+      { id: "wf_01", title: "週次営業進捗レポート配布", description: "営業課長・部長へ進捗書類を届け、サインを受領する。", relatedTaskId: "dist_01" },
+      { id: "wf_02", title: "複合機トラブル・用紙詰まり解消", description: "カバーを開けてローラー挟まりを除去し、印刷を復旧させる。", relatedTaskId: "printer_event" },
+      { id: "wf_03", title: "総務部備品受取・仕分け", description: "社内電話着信に応答し、2F総務部から備品を引き取る。", relatedTaskId: "phone_event" }
+    ];
+  }
+
+  getMockBoardPosts() {
+    return [
+      { date: "2026/10/27 09:30", author: "総務部", category: "連絡", message: "本日の15:00より空調設備の一斉点検を行います。" }
+    ];
+  }
+
+  getMockChatMessages(channelType) {
+    return [
+      { id: "m_1", timestamp: "10:15", senderName: "佐藤 課長", message: "本日のフロアミーティングは14時から6F会議室です。" }
+    ];
+  }
+}
+
+/**
+ * メインアプリケーションクラス
+ */
 class OfficeSimApp {
   constructor() {
     this.currentFloor = 3;
@@ -18,19 +169,15 @@ class OfficeSimApp {
     this.activeTargets = [];
     this.pulseTimer = 0;
 
-    // トレーニング計測タイマー
     this.trainingStartTime = 0;
     this.currentTrainingTaskId = null;
 
-    // 衝突判定 (2.5秒トリガー)
     this.collidingObject = null;
     this.collisionTimer = 0;
     this.isModalActive = false;
 
-    // 認証・ユーザー情報
     this.currentUser = null;
 
-    // チャット管理
     this.chatChannel = 'all';
     this.chatTarget = 'all';
     this.chatPollInterval = null;
@@ -43,7 +190,6 @@ class OfficeSimApp {
   init() {
     const container = document.getElementById('canvas-container');
 
-    // 1. シーン・アイソメトリックカメラ設定
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xd7e0e5);
 
@@ -52,7 +198,6 @@ class OfficeSimApp {
     this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
     this.updateCamera(0, 0);
 
-    // 2. レンダラー
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -60,7 +205,6 @@ class OfficeSimApp {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // 3. ライティング
     const ambient = new THREE.AmbientLight(0xffffff, 0.75);
     this.scene.add(ambient);
 
@@ -71,7 +215,6 @@ class OfficeSimApp {
     dirLight.shadow.mapSize.height = 2048;
     this.scene.add(dirLight);
 
-    // 4. 床面 & 50cmグリッド
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -83,11 +226,9 @@ class OfficeSimApp {
     grid.position.y = 0.005;
     this.scene.add(grid);
 
-    // 5. プレイヤー・通信サービス初期化
     this.player = new Player(this.scene);
     this.sheetService = new SheetService(CONFIG.GAS_API_URL);
 
-    // 6. 初期フロア読み込み & UIイベント登録
     this.loadFloor(this.currentFloor);
     this.setupEvents();
     this.animate();
@@ -112,7 +253,6 @@ class OfficeSimApp {
   }
 
   async loadFloor(floorId) {
-    // 既存オブジェクトの完全解放 (メモリリーク防止)
     this.floorObjects.forEach(obj => {
       this.scene.remove(obj);
       obj.traverse(child => {
@@ -198,7 +338,6 @@ class OfficeSimApp {
     }
   }
 
-  // --- 社内チャット機能 ---
   async loadChatMessages() {
     const container = document.getElementById('chat-messages');
     if (!container) return;
@@ -254,7 +393,6 @@ class OfficeSimApp {
     let currentAuthEmail = "";
     let currentAuthUserData = null;
 
-    // 1. Googleメールアドレス照合ステップ
     document.getElementById('btn-check-email')?.addEventListener('click', async () => {
       const email = document.getElementById('login-email').value.trim();
       if (!email) {
@@ -281,7 +419,6 @@ class OfficeSimApp {
       }
     });
 
-    // 2. 暗号化パスワードログイン
     document.getElementById('btn-login-exec')?.addEventListener('click', async () => {
       const pass = document.getElementById('login-password').value;
       if (!passwordRegex.test(pass)) {
@@ -300,7 +437,6 @@ class OfficeSimApp {
       }
     });
 
-    // 3. 初回パスワード登録
     document.getElementById('btn-setup-exec')?.addEventListener('click', async () => {
       const newPass = document.getElementById('setup-password').value;
       if (!passwordRegex.test(newPass)) {
@@ -320,7 +456,6 @@ class OfficeSimApp {
       }
     });
 
-    // 4. 受講履歴一覧モーダル
     document.getElementById('btn-history')?.addEventListener('click', async () => {
       if (!this.currentUser) return;
       const logs = await this.sheetService.fetchTrainingLogs();
@@ -344,7 +479,6 @@ class OfficeSimApp {
       this.showModal(`📊 ${this.currentUser.name} さんの受講・実績履歴`, html);
     });
 
-    // 5. リサイズ & キーボード入力 (安全なガード処理)
     window.addEventListener('resize', () => {
       const aspect = window.innerWidth / window.innerHeight;
       const d = CONFIG.CAMERA_VIEW_SIZE;
@@ -368,7 +502,6 @@ class OfficeSimApp {
       }
     });
 
-    // 6. バーチャルジョイスティック
     const zone = document.getElementById('joystick-zone');
     const knob = document.getElementById('joystick-knob');
     let active = false, startX = 0, startY = 0;
@@ -393,7 +526,6 @@ class OfficeSimApp {
       }
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
 
-      // クォータービュー軸補正
       const rad = Math.atan2(dy, dx) - Math.PI / 4;
       const norm = dist / maxR;
       this.inputVector.x = Math.cos(rad) * norm;
@@ -408,7 +540,6 @@ class OfficeSimApp {
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
 
-    // 7. フロア切り替え
     document.getElementById('floor-select')?.addEventListener('change', e => {
       this.currentFloor = parseInt(e.target.value, 10);
       this.loadFloor(this.currentFloor);
@@ -419,7 +550,6 @@ class OfficeSimApp {
       }
     });
 
-    // 8. チャットドロワー
     const chatDrawer = document.getElementById('chat-drawer');
     document.getElementById('btn-chat-toggle')?.addEventListener('click', () => {
       chatDrawer.classList.add('open');
@@ -452,7 +582,6 @@ class OfficeSimApp {
       if (e.key === 'Enter') this.sendCurrentChatMessage();
     });
 
-    // 9. 家具配置・編集モード
     const editBtn = document.getElementById('btn-edit-mode');
     const rotateBtn = document.getElementById('rotate-btn');
     const palette = document.getElementById('furniture-palette');
@@ -493,7 +622,6 @@ class OfficeSimApp {
       }
     });
 
-    // 10. 家具ドラッグ移動
     const dom = this.renderer.domElement;
     dom.addEventListener('pointerdown', e => {
       if (!this.isEditMode) return;
@@ -527,7 +655,6 @@ class OfficeSimApp {
 
     window.addEventListener('pointerup', () => { this.isDragging = false; });
 
-    // 11. マニュアル辞書モーダル
     document.getElementById('btn-dictionary')?.addEventListener('click', async () => {
       const terms = await this.sheetService.fetchDictionary();
       let html = '<div style="max-height: 280px; overflow-y: auto;">';
@@ -541,7 +668,6 @@ class OfficeSimApp {
       this.showModal("📖 社内マニュアル・用語辞書 (自席参照)", html);
     });
 
-    // 12. 業務フロー図モーダル
     document.getElementById('btn-workflow')?.addEventListener('click', async () => {
       const flows = await this.sheetService.fetchWorkflows();
       let html = '<p style="margin-bottom: 10px; font-size: 12px; color: #757575;">フローをタップすると、該当のシミュレーション業務が起動します。</p>';
@@ -748,7 +874,6 @@ class OfficeSimApp {
     const hitObject = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // 2.5秒衝突押し当て判定
     if (!this.isModalActive && hitObject) {
       if (this.collidingObject === hitObject) {
         this.collisionTimer += delta;
@@ -765,7 +890,6 @@ class OfficeSimApp {
       this.collisionTimer = 0;
     }
 
-    // 配布物トレーニング達成判定 & 履歴自動保存
     if (this.activeTargets.length > 0) {
       this.pulseTimer += delta * 6;
       const s = 1.0 + Math.sin(this.pulseTimer) * 0.25;
