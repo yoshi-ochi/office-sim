@@ -1043,7 +1043,14 @@ class OfficeSimApp {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+function startOfficeSimApp() {
   const app = new OfficeSimApp();
   app.init();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startOfficeSimApp);
+} else {
+  // すでにDOMの読み込みが完了しているため、即座に初期化・イベント登録を実行
+  startOfficeSimApp();
+}
