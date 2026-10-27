@@ -1,6 +1,6 @@
 // src/js/config.js
 export const CONFIG = {
-  GAS_API_URL: "https://script.google.com/macros/s/AKfycby4nw9CUZzjK6uIuYvvKiT7q90gxv1TVJvBOoqkeFXgbrpUZWBaT8P-Y_aEQWDEtn3-cw/exec",
+  GAS_API_URL: "https://script.google.com/macros/s/AKfycbwhcHsk3SxlV9C3qhMMdYQ6xFaVs00sFCzkmpwbBRYqI9xcsTaII4Z579D6mWfYnLiJ6Q/exec",
   FIELD_SIZE: 50,
   GRID_SIZE: 0.5,
   GRID_DIVISIONS: 100,
