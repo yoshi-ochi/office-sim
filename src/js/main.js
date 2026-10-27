@@ -3,9 +3,6 @@ import { CONFIG } from './config.js';
 import { FurnitureFactory } from './entities/Furniture.js';
 import { Player } from './entities/Player.js';
 
-/**
- * 通信・認証サービスクラス（キャッシュ不整合防止のためmain.jsに統合）
- */
 class SheetService {
   constructor(apiEndpoint) {
     this.apiEndpoint = apiEndpoint;
@@ -152,9 +149,6 @@ class SheetService {
   }
 }
 
-/**
- * メインアプリケーションクラス
- */
 class OfficeSimApp {
   constructor() {
     this.currentFloor = 3;
@@ -242,7 +236,7 @@ class OfficeSimApp {
   checkCollision(x, z) {
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
-      const r = obj.userData.collisionRadius || 0.6;
+      const r = obj.userData.collisionRadius || 0.65;
       const dx = x - obj.position.x;
       const dz = z - obj.position.z;
       if (Math.hypot(dx, dz) < (CONFIG.PLAYER_RADIUS + r)) {
@@ -296,6 +290,19 @@ class OfficeSimApp {
       this.scene.add(furniture);
       this.floorObjects.push(furniture);
     });
+
+    // --- エレベーター & 階段を常設 (コア設備) ---
+    if (!this.floorObjects.some(o => o.userData.isElevator)) {
+      const elv = FurnitureFactory.create('elevator', { x: -9, z: -10, rotation: 0, role: 'エレベーター' });
+      this.scene.add(elv);
+      this.floorObjects.push(elv);
+    }
+
+    if (!this.floorObjects.some(o => o.userData.isStairs)) {
+      const str = FurnitureFactory.create('stairs', { x: 9, z: -10, rotation: 0, role: '連絡階段' });
+      this.scene.add(str);
+      this.floorObjects.push(str);
+    }
   }
 
   spawnFurnitureInFrontOfPlayer(type) {
@@ -541,13 +548,8 @@ class OfficeSimApp {
     window.addEventListener('pointercancel', endJoy);
 
     document.getElementById('floor-select')?.addEventListener('change', e => {
-      this.currentFloor = parseInt(e.target.value, 10);
-      this.loadFloor(this.currentFloor);
-      this.cancelTraining();
-      if (this.chatChannel === 'floor') {
-        this.chatTarget = String(this.currentFloor);
-        this.loadChatMessages();
-      }
+      const selected = parseInt(e.target.value, 10);
+      this.changeFloorWithTransition(selected, false);
     });
 
     const chatDrawer = document.getElementById('chat-drawer');
@@ -702,7 +704,11 @@ class OfficeSimApp {
     }
 
     const data = obj.userData;
-    if (data.isPrinter) {
+    if (data.isElevator) {
+      this.triggerElevator();
+    } else if (data.isStairs) {
+      this.triggerStairs();
+    } else if (data.isPrinter) {
       this.triggerPrinter();
     } else if (data.type === 'phone') {
       this.triggerPhone();
@@ -715,6 +721,109 @@ class OfficeSimApp {
         <strong>状況:</strong> 通常業務中
       `);
     }
+  }
+
+  // --- エレベーター操作盤モーダル ---
+  triggerElevator() {
+    let buttonsHtml = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px;">';
+    CONFIG.FLOORS.forEach(f => {
+      const isCurrent = f.id === this.currentFloor;
+      buttonsHtml += `
+        <button class="btn-elv-floor" data-floor="${f.id}" style="
+          padding: 12px 8px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: ${isCurrent ? 'default' : 'pointer'};
+          border: 1.5px solid ${isCurrent ? '#00897b' : '#cfd8dc'};
+          background: ${isCurrent ? '#e0f2f1' : '#ffffff'};
+          color: ${isCurrent ? '#004d40' : '#37474f'};
+        " ${isCurrent ? 'disabled' : ''}>
+          🛗 ${f.id}F ${f.name} ${isCurrent ? '【現在地】' : ''}
+        </button>
+      `;
+    });
+    buttonsHtml += '</div>';
+
+    this.showModal("🛗 エレベーター操作盤", `
+      <p style="font-size: 13px; color: #546e7a; margin-bottom: 6px;">移動したい目的フロアを選択してください。</p>
+      ${buttonsHtml}
+    `);
+
+    document.querySelectorAll('.btn-elv-floor').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = parseInt(e.currentTarget.getAttribute('data-floor'), 10);
+        if (target !== this.currentFloor) {
+          this.changeFloorWithTransition(target, 'elevator');
+        }
+      });
+    });
+  }
+
+  // --- 連絡階段モーダル ---
+  triggerStairs() {
+    const prevFloor = this.currentFloor > 1 ? this.currentFloor - 1 : null;
+    const nextFloor = this.currentFloor < CONFIG.FLOORS.length ? this.currentFloor + 1 : null;
+
+    let html = `
+      <p style="font-size: 13px; color: #546e7a; margin-bottom: 16px;">
+        現在地: <strong>${this.currentFloor}F</strong><br>
+        連絡階段を使って上下のフロアへ徒歩で移動します。
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+    `;
+
+    if (nextFloor) {
+      const fInfo = CONFIG.FLOORS.find(f => f.id === nextFloor);
+      html += `
+        <button class="btn-stair-move" data-floor="${nextFloor}" style="padding: 14px; background: #e3f2fd; border: 1.5px solid #2196f3; color: #0d47a1; font-weight: bold; border-radius: 8px; cursor: pointer; text-align: left;">
+          ⬆️ 1フロア上がる（${nextFloor}F ${fInfo ? fInfo.name : ''}）
+        </button>
+      `;
+    }
+
+    if (prevFloor) {
+      const fInfo = CONFIG.FLOORS.find(f => f.id === prevFloor);
+      html += `
+        <button class="btn-stair-move" data-floor="${prevFloor}" style="padding: 14px; background: #fff3e0; border: 1.5px solid #ff9800; color: #e65100; font-weight: bold; border-radius: 8px; cursor: pointer; text-align: left;">
+          ⬇️ 1フロア下りる（${prevFloor}F ${fInfo ? fInfo.name : ''}）
+        </button>
+      `;
+    }
+
+    html += '</div>';
+
+    this.showModal("🪜 連絡階段", html);
+
+    document.querySelectorAll('.btn-stair-move').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = parseInt(e.currentTarget.getAttribute('data-floor'), 10);
+        this.changeFloorWithTransition(target, 'stairs');
+      });
+    });
+  }
+
+  // --- フロア切り替えとプレイヤー再配置 ---
+  changeFloorWithTransition(targetFloor, arrivalType = 'elevator') {
+    this.closeModal();
+    this.currentFloor = targetFloor;
+
+    const floorSelect = document.getElementById('floor-select');
+    if (floorSelect) floorSelect.value = String(targetFloor);
+
+    if (this.chatChannel === 'floor') {
+      this.chatTarget = String(targetFloor);
+      this.loadChatMessages();
+    }
+
+    this.cancelTraining();
+    this.loadFloor(targetFloor);
+
+    // 移動方法に応じて出現位置を切り替え（接触ループを防ぐため手前へオフセット）
+    if (arrivalType === 'elevator') {
+      this.player.position.set(-9, 0, -8);
+    } else if (arrivalType === 'stairs') {
+      this.player.position.set(9, 0, -8);
+    } else {
+      this.player.position.set(0, 0, 0);
+    }
+    this.player.targetRotation = 0;
   }
 
   async triggerBoard() {
