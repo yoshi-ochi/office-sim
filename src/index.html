@@ -7,6 +7,25 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/ui.css">
   <style>
+    /* 未読バッジ */
+    .badge-counter {
+      position: absolute; top: -6px; right: -6px;
+      background: #ef4444; color: #fff; font-size: 11px; font-weight: 800;
+      min-width: 18px; height: 18px; border-radius: 9px;
+      display: none; align-items: center; justify-content: center;
+      padding: 0 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); pointer-events: none;
+    }
+
+    /* ミニマップ (右下配置) */
+    #minimap-container {
+      position: absolute; bottom: 20px; right: 20px;
+      width: 140px; height: 140px; background: rgba(15, 23, 42, 0.75);
+      border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 12px;
+      overflow: hidden; backdrop-filter: blur(4px); z-index: 15; pointer-events: none;
+    }
+    #minimap-canvas { width: 100%; height: 100%; display: block; }
+
+    /* 家具パレット & 編集コントロール */
     #furniture-palette {
       position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
       display: none; gap: 8px; background: rgba(255, 255, 255, 0.95);
@@ -20,6 +39,22 @@
     }
     .palette-btn.cancel { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
 
+    /* 家具編集フローティング操作バー（選択中のみ表示） */
+    #furniture-action-bar {
+      position: absolute; bottom: 175px; left: 50%; transform: translateX(-50%);
+      display: none; gap: 8px; background: #1e293b; padding: 6px 12px; border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 22; pointer-events: auto;
+    }
+    #furniture-action-bar.active { display: flex; }
+    .fab-btn {
+      border: none; border-radius: 14px; padding: 6px 12px; font-size: 11px;
+      font-weight: bold; cursor: pointer; color: #fff;
+    }
+    .fab-rotate { background: #2563eb; }
+    .fab-edit { background: #0284c7; }
+    .fab-delete { background: #dc2626; }
+
+    /* チャットドロワー */
     #chat-drawer {
       position: absolute; top: 0; right: -360px; width: 340px; max-width: 85vw; height: 100%;
       background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(12px); box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
@@ -39,64 +74,52 @@
     .chat-input-bar input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 13px; }
     .chat-input-bar button { padding: 8px 16px; background: #00897b; color: #fff; border: none; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; }
 
+    /* 認証モーダル */
     #login-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px);
       z-index: 100; display: flex; align-items: center; justify-content: center;
     }
-    .login-box {
-      background: #ffffff; width: 90%; max-width: 400px; padding: 32px; border-radius: 20px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); text-align: center;
-    }
+    .login-box { background: #ffffff; width: 90%; max-width: 400px; padding: 32px; border-radius: 20px; text-align: center; }
     .login-box h2 { font-size: 20px; color: #0f172a; margin-bottom: 6px; font-weight: 800; }
-    .login-desc { font-size: 12px; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
-    .auth-badge {
-      display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 8px 14px;
-      border-radius: 10px; font-size: 13px; color: #334155; margin-bottom: 16px; font-weight: 600;
-    }
-    .login-field {
-      width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px;
-      font-size: 14px; box-sizing: border-box; outline: none; margin-bottom: 12px;
-    }
-    .login-field:focus { border-color: #2563eb; }
-    .login-helper { font-size: 11px; color: #94a3b8; text-align: left; margin: -6px 0 16px 2px; }
-    .btn-login-submit {
-      width: 100%; padding: 12px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 700;
-      border: none; border-radius: 10px; cursor: pointer; transition: background 0.15s;
-    }
-    .btn-login-submit:hover { background: #1d4ed8; }
+    .login-field { width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 14px; box-sizing: border-box; margin-bottom: 12px; }
+    .btn-login-submit { width: 100%; padding: 12px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
+  <!-- 認証オーバーレイ -->
   <div id="login-overlay">
     <div class="login-box">
       <h2>🔐 OfficeSim セキュア認証</h2>
-      <p class="login-desc">許可されたアカウントのみがオフィスデータにアクセスできます。</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">許可されたアカウントでログインしてください。</p>
       
       <div id="step-email-area">
-        <input type="email" id="login-email" class="login-field" placeholder="Googleメールアドレス (例: user@gmail.com)">
+        <input type="email" id="login-email" class="login-field" placeholder="Googleメールアドレス">
         <button id="btn-check-email" class="btn-login-submit">次へ</button>
       </div>
 
       <div id="password-form-area" style="display: none;">
-        <div id="login-user-name" class="auth-badge"></div>
-        <input type="password" id="login-password" class="login-field" placeholder="パスワード (4〜20文字)" maxlength="20">
-        <div class="login-helper">※ 半角英数字・記号 4〜20文字で入力してください。</div>
+        <div id="login-user-name" style="margin-bottom: 12px; font-weight: bold; color: #1e293b;"></div>
+        <input type="password" id="login-password" class="login-field" placeholder="パスワード (4〜20文字)">
         <button id="btn-login-exec" class="btn-login-submit">サインイン</button>
       </div>
 
       <div id="setup-form-area" style="display: none;">
-        <div id="setup-user-name" class="auth-badge"></div>
-        <p style="color: #0284c7; font-size: 12px; margin-bottom: 8px; font-weight: bold;">初回サインインです。パスワードを設定してください。</p>
-        <input type="password" id="setup-password" class="login-field" placeholder="新しいパスワード (4〜20文字)" maxlength="20">
-        <div class="login-helper">※ 設定したパスワードは暗号化ハッシュとして安全に保存されます。</div>
-        <button id="btn-setup-exec" class="btn-login-submit" style="background: #0284c7;">パスワードを設定して開始</button>
+        <div id="setup-user-name" style="margin-bottom: 12px; font-weight: bold; color: #1e293b;"></div>
+        <p style="color: #0284c7; font-size: 12px; margin-bottom: 8px;">初回サインインです。パスワードを設定してください。</p>
+        <input type="password" id="setup-password" class="login-field" placeholder="新しいパスワード (4〜20文字)">
+        <button id="btn-setup-exec" class="btn-login-submit" style="background: #0284c7;">設定して開始</button>
       </div>
     </div>
   </div>
 
   <div id="canvas-container"></div>
+
+  <!-- ミニマップ -->
+  <div id="minimap-container">
+    <canvas id="minimap-canvas" width="140" height="140"></canvas>
+  </div>
 
   <div id="ui-layer">
     <header class="top-nav">
@@ -117,13 +140,20 @@
       <div class="nav-group">
         <span id="user-badge" style="font-size: 12px; font-weight: bold; color: #1e88e5; padding: 4px 8px; background: #e3f2fd; border-radius: 12px;">👤 認証待機中</span>
         <button id="btn-history" class="btn-mode" style="background: #e65100;">受講履歴</button>
-        <button id="btn-chat-toggle" class="btn-mode" style="background: #00897b;">💬 チャット</button>
+        
+        <!-- チャットボタン (未読バッジ付き) -->
+        <div style="position: relative; display: inline-block;">
+          <button id="btn-chat-toggle" class="btn-mode" style="background: #00897b;">💬 チャット</button>
+          <span id="chat-unread-badge" class="badge-counter">0</span>
+        </div>
+
         <button id="btn-workflow" class="btn-mode" style="background: #0288d1;">業務フロー図</button>
         <button id="btn-dictionary" class="btn-mode" style="background: #7b1fa2;">辞書(自席)</button>
         <button id="btn-edit-mode" class="btn-mode">家具配置</button>
       </div>
     </header>
 
+    <!-- チャットドロワー -->
     <div id="chat-drawer">
       <div class="chat-header">
         <span style="font-weight: bold;">💬 社内コミュニケーション</span>
@@ -141,6 +171,14 @@
       </div>
     </div>
 
+    <!-- 家具操作用フローティングバー (配置モード時) -->
+    <div id="furniture-action-bar">
+      <button id="btn-f-rotate" class="fab-btn fab-rotate">🔄 90°回転</button>
+      <button id="btn-f-edit" class="fab-btn fab-edit">✏️ 属性編集</button>
+      <button id="btn-f-delete" class="fab-btn fab-delete">🗑️ 撤去</button>
+    </div>
+
+    <!-- 家具パレット -->
     <div id="furniture-palette">
       <button class="palette-btn" data-type="desk">+ 机</button>
       <button class="palette-btn" data-type="chair">+ 椅子</button>
@@ -154,13 +192,7 @@
       <button class="palette-btn cancel" id="btn-palette-close">閉じる</button>
     </div>
 
-    <div id="joystick-zone">
-      <div id="joystick-knob"></div>
-    </div>
-
-    <div class="action-controls">
-      <button id="rotate-btn" class="round-action-btn btn-rotate" title="家具を90度回転">回転</button>
-    </div>
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
 
     <div id="info-modal" class="modal-overlay">
       <div class="modal-window">
@@ -173,18 +205,14 @@
     </div>
   </div>
 
-  <!-- 静的スクリプトタグを削除し、動的キャッシュクリアローダーを配置 -->
+  <!-- 動的タイムスタンプローダー -->
   <script>
     (function() {
-      // 起動のたびに現在時刻のタイムスタンプを付与してキャッシュを100%無視する
-      const t = Date.now();
       const script = document.createElement('script');
       script.type = 'module';
-      script.src = `./js/main.js?t=${t}`;
+      script.src = `./js/main.js?t=${Date.now()}`;
       document.body.appendChild(script);
     })();
   </script>
-</body>
-</html>
 </body>
 </html>
