@@ -99,4 +99,12 @@ export class SheetService {
   async saveTrainingLog(logData) {
     return await this.postToGas({ action: "saveTrainingLog", log: logData });
   }
+
+  async saveDictionaryTerm(termData) {
+    return await this.postToGas({ action: "saveDictionaryTerm", term: termData });
+  }
+
+  async saveWorkflows(rows) {
+    return await this.postToGas({ action: "saveWorkflows", rows });
+  }
 }

@@ -9,17 +9,16 @@ export class FurnitureFactory {
       type: type,
       gridX: parseFloat(data.x) || 0,
       gridZ: parseFloat(data.z) || 0,
-      role: data.role || (type === 'desk' ? '社員' : (type === 'elevator' ? 'エレベーター' : (type === 'stairs' ? '階段' : '共用備品'))),
+      role: data.role || (type === 'desk' ? '社員' : (type === 'stairs_up' ? '上り階段' : (type === 'stairs_down' ? '下り階段' : '共用設備'))),
       person: data.person || '未設定',
-      department: data.department || '営業部',
-      shift: data.shift || '09:00-17:00', // 勤務シフト (NPC在席判定に使用)
-      task: data.task || 'なし',
-      distNeeded: data.distNeeded || null,
+      department: data.department || '編集局',
+      shift: data.shift || '09:00-17:00',
       isMySeat: !!data.isMySeat,
       isPrinter: !!data.isPrinter || type === 'printer',
       isElevator: !!data.isElevator || type === 'elevator',
-      isStairs: !!data.isStairs || type === 'stairs',
-      collisionRadius: (type === 'partition' || type === 'phone') ? 0.35 : (type === 'elevator' || type === 'stairs' ? 1.2 : 0.65)
+      isStairsUp: type === 'stairs_up',
+      isStairsDown: type === 'stairs_down',
+      collisionRadius: (type === 'partition' || type === 'phone') ? 0.35 : (type.includes('stairs') || type === 'elevator' ? 1.2 : 0.65)
     };
 
     let mesh;
@@ -32,12 +31,13 @@ export class FurnitureFactory {
       case 'phone': mesh = this.buildPhone(); break;
       case 'board': mesh = this.buildBoard(group); break;
       case 'elevator': mesh = this.buildElevator(); break;
-      case 'stairs': mesh = this.buildStairs(); break;
+      case 'stairs_up': mesh = this.buildStairsMesh(0x22c55e, 'UP'); break; // 緑（上り）
+      case 'stairs_down': mesh = this.buildStairsMesh(0xf97316, 'DN'); break; // オレンジ（下り）
       default: mesh = this.buildBox(); break;
     }
     group.add(mesh);
 
-    // 配布タスク用マーカー
+    // 配布タスク用赤球マーカー
     const redDotGeo = new THREE.SphereGeometry(0.22, 16, 16);
     const redDotMat = new THREE.MeshBasicMaterial({ color: 0xff1744 });
     const redDot = new THREE.Mesh(redDotGeo, redDotMat);
@@ -61,7 +61,7 @@ export class FurnitureFactory {
     const topGeo = new THREE.BoxGeometry(1.4, 0.05, 0.8);
     const topMat = new THREE.MeshStandardMaterial({ color: isMySeat ? 0x64b5f6 : 0xd7ccc8, roughness: 0.4 });
     const top = new THREE.Mesh(topGeo, topMat);
-    top.position.y = 0.72; top.castShadow = true; top.receiveShadow = true;
+    top.position.y = 0.72; top.castShadow = true;
     group.add(top);
 
     const legGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8);
@@ -82,156 +82,101 @@ export class FurnitureFactory {
 
   static buildChair() {
     const group = new THREE.Group();
-    const seatGeo = new THREE.BoxGeometry(0.48, 0.06, 0.48);
     const seatMat = new THREE.MeshStandardMaterial({ color: 0x37474f });
-    const seat = new THREE.Mesh(seatGeo, seatMat);
-    seat.position.y = 0.45; seat.castShadow = true;
-    group.add(seat);
-
-    const backGeo = new THREE.BoxGeometry(0.48, 0.45, 0.05);
-    const back = new THREE.Mesh(backGeo, seatMat);
-    back.position.set(0, 0.7, -0.22); back.castShadow = true;
-    group.add(back);
-
-    const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8);
-    const pole = new THREE.Mesh(poleGeo, seatMat);
-    pole.position.y = 0.21;
-    group.add(pole);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.06, 0.48), seatMat);
+    seat.position.y = 0.45; seat.castShadow = true; group.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.45, 0.05), seatMat);
+    back.position.set(0, 0.7, -0.22); back.castShadow = true; group.add(back);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), seatMat);
+    pole.position.y = 0.21; group.add(pole);
     return group;
   }
 
   static buildPartition() {
-    const geo = new THREE.BoxGeometry(1.2, 1.4, 0.06);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x90a4ae });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.7; mesh.castShadow = true;
-    return mesh;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.06), new THREE.MeshStandardMaterial({ color: 0x90a4ae }));
+    mesh.position.y = 0.7; mesh.castShadow = true; return mesh;
   }
 
   static buildPrinter() {
     const group = new THREE.Group();
-    const bodyGeo = new THREE.BoxGeometry(0.9, 0.95, 0.8);
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0.48; body.castShadow = true;
-    group.add(body);
-
-    const panelGeo = new THREE.BoxGeometry(0.4, 0.06, 0.25);
-    const panelMat = new THREE.MeshStandardMaterial({ color: 0x1976d2 });
-    const panel = new THREE.Mesh(panelGeo, panelMat);
-    panel.position.set(0.15, 0.98, 0.2);
-    group.add(panel);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.95, 0.8), new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
+    body.position.y = 0.48; body.castShadow = true; group.add(body);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.25), new THREE.MeshStandardMaterial({ color: 0x1976d2 }));
+    panel.position.set(0.15, 0.98, 0.2); group.add(panel);
     return group;
   }
 
   static buildLocker() {
-    const geo = new THREE.BoxGeometry(0.9, 1.8, 0.5);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xb0bec5 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.9; mesh.castShadow = true;
-    return mesh;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0xb0bec5 }));
+    mesh.position.y = 0.9; mesh.castShadow = true; return mesh;
   }
 
   static buildPhone() {
-    const geo = new THREE.BoxGeometry(0.25, 0.1, 0.25);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x455a64 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.75;
-    return mesh;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.1, 0.25), new THREE.MeshStandardMaterial({ color: 0x455a64 }));
+    mesh.position.y = 0.75; return mesh;
   }
 
   static buildBoard(parentGroup) {
     const group = new THREE.Group();
-    const geo = new THREE.BoxGeometry(1.6, 1.1, 0.06);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 });
-    const frame = new THREE.Mesh(geo, mat);
-    frame.position.y = 1.35; frame.castShadow = true;
-    group.add(frame);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.06), new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 }));
+    frame.position.y = 1.35; frame.castShadow = true; group.add(frame);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.98, 0.07), new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 }));
+    face.position.y = 1.35; group.add(face);
 
-    const faceGeo = new THREE.BoxGeometry(1.48, 0.98, 0.07);
-    const faceMat = new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 });
-    const face = new THREE.Mesh(faceGeo, faceMat);
-    face.position.y = 1.35;
-    group.add(face);
-
-    // 掲示板未読アイコン (右上バッジ)
-    const badgeGeo = new THREE.SphereGeometry(0.12, 16, 16);
-    const badgeMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-    const unreadDot = new THREE.Mesh(badgeGeo, badgeMat);
-    unreadDot.position.set(0.65, 1.8, 0.1);
-    unreadDot.visible = false;
-    group.add(unreadDot);
-    parentGroup.userData.unreadBoardDot = unreadDot;
-
+    const badge = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    badge.position.set(0.65, 1.8, 0.1); badge.visible = false; group.add(badge);
+    parentGroup.userData.unreadBoardDot = badge;
     return group;
   }
 
   static buildElevator() {
     const group = new THREE.Group();
-    const shaftGeo = new THREE.BoxGeometry(2.2, 3.2, 1.6);
-    const shaftMat = new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.4, metalness: 0.3 });
-    const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-    shaft.position.y = 1.6; shaft.castShadow = true; shaft.receiveShadow = true;
-    group.add(shaft);
-
-    const doorGeo = new THREE.BoxGeometry(1.4, 2.4, 0.06);
-    const doorMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 });
-    const door = new THREE.Mesh(doorGeo, doorMat);
-    door.position.set(0, 1.2, 0.82);
-    group.add(door);
-
-    const slitGeo = new THREE.BoxGeometry(0.04, 2.4, 0.08);
-    const slitMat = new THREE.MeshBasicMaterial({ color: 0x263238 });
-    const slit = new THREE.Mesh(slitGeo, slitMat);
-    slit.position.set(0, 1.2, 0.83);
-    group.add(slit);
-
-    const indGeo = new THREE.BoxGeometry(0.8, 0.25, 0.08);
-    const indMat = new THREE.MeshBasicMaterial({ color: 0xffb300 });
-    const ind = new THREE.Mesh(indGeo, indMat);
-    ind.position.set(0, 2.65, 0.83);
-    group.add(ind);
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 1.6), new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.4, metalness: 0.3 }));
+    shaft.position.y = 1.6; shaft.castShadow = true; group.add(shaft);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 0.06), new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 }));
+    door.position.set(0, 1.2, 0.82); group.add(door);
+    const ind = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.25, 0.08), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
+    ind.position.set(0, 2.65, 0.83); group.add(ind);
     return group;
   }
 
-  static buildStairs() {
+  // 上り階段・下り階段の共通ステップモデル
+  static buildStairsMesh(signColor, text) {
     const group = new THREE.Group();
-    const steps = 5, stepDepth = 0.35, stepHeight = 0.25, width = 1.6;
-    const stairMat = new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.7 });
+    const steps = 5, stepDepth = 0.35, stepHeight = 0.24, width = 1.6;
+    const stairMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
 
     for (let i = 0; i < steps; i++) {
       const h = (i + 1) * stepHeight;
       const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, h, stepDepth), stairMat);
       stepMesh.position.set(0, h / 2, -0.7 + (i * stepDepth));
-      stepMesh.castShadow = true; stepMesh.receiveShadow = true;
-      group.add(stepMesh);
+      stepMesh.castShadow = true; group.add(stepMesh);
     }
 
-    const railMat = new THREE.MeshStandardMaterial({ color: 0xffb300, roughness: 0.3, metalness: 0.5 });
+    // 手すり
+    const railMat = new THREE.MeshStandardMaterial({ color: signColor, roughness: 0.3, metalness: 0.5 });
     [-0.8, 0.8].forEach(x => {
-      const poleGeo = new THREE.CylinderGeometry(0.035, 0.035, 1.4);
-      const pole1 = new THREE.Mesh(poleGeo, railMat);
-      pole1.position.set(x, 1.2, 0.6);
-      group.add(pole1);
-
-      const pole2 = new THREE.Mesh(poleGeo, railMat);
-      pole2.position.set(x, 0.6, -0.6);
-      group.add(pole2);
-
+      const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4), railMat);
+      p1.position.set(x, 1.2, 0.6); group.add(p1);
+      const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4), railMat);
+      p2.position.set(x, 0.6, -0.6); group.add(p2);
       const bar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1.85), railMat);
       bar.rotation.x = Math.PI / 6.2;
-      bar.position.set(x, 1.28, 0);
-      group.add(bar);
+      bar.position.set(x, 1.28, 0); group.add(bar);
     });
+
+    // 階段頭上の案内サイン（▲UP / ▼DOWN）
+    const signGeo = new THREE.BoxGeometry(1.0, 0.35, 0.08);
+    const signMat = new THREE.MeshBasicMaterial({ color: signColor });
+    const sign = new THREE.Mesh(signGeo, signMat);
+    sign.position.set(0, 2.2, 0);
+    group.add(sign);
+
     return group;
   }
 
   static buildBox() {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.8, 0.8),
-      new THREE.MeshStandardMaterial({ color: 0xffb74d })
-    );
-    mesh.position.y = 0.4;
-    return mesh;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xffb74d }));
+    mesh.position.y = 0.4; return mesh;
   }
 }

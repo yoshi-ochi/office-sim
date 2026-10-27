@@ -1,11 +1,12 @@
 // src/js/config.js
 export const CONFIG = {
-  GAS_API_URL: "https://script.google.com/macros/s/AKfycbwhcHsk3SxlV9C3qhMMdYQ6xFaVs00sFCzkmpwbBRYqI9xcsTaII4Z579D6mWfYnLiJ6Q/exec",
+  GAS_API_URL: "https://script.google.com/macros/s/AKfycbzjOakTpi9SBII8IYt-G-uoBOhHzN8YfrPx3Yt861SVu_h3tgIvHahyKyIr2QcsCLgDRg/exec",
   FIELD_SIZE: 50,
   GRID_SIZE: 0.5,
   GRID_DIVISIONS: 100,
   MOVE_SPEED: 7.5,
   ROTATION_SPEED: 14.0,
+  COLLISION_TRIGGER_TIME: 1.2
   CAMERA_VIEW_SIZE: 14,
   CAMERA_ELEVATION: 30,
   CAMERA_DISTANCE: 26,
