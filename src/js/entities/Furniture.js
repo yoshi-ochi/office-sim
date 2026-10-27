@@ -9,13 +9,15 @@ export class FurnitureFactory {
       type: type,
       gridX: parseFloat(data.x) || 0,
       gridZ: parseFloat(data.z) || 0,
-      role: data.role || (type === 'desk' ? '社員' : '共用備品'),
+      role: data.role || (type === 'desk' ? '社員' : (type === 'elevator' ? 'エレベーター' : (type === 'stairs' ? '階段' : '共用備品'))),
       person: data.person || '未設定',
       task: data.task || 'なし',
       distNeeded: data.distNeeded || null,
       isMySeat: !!data.isMySeat,
       isPrinter: !!data.isPrinter || type === 'printer',
-      collisionRadius: (type === 'partition' || type === 'phone') ? 0.35 : 0.65
+      isElevator: !!data.isElevator || type === 'elevator',
+      isStairs: !!data.isStairs || type === 'stairs',
+      collisionRadius: (type === 'partition' || type === 'phone') ? 0.35 : (type === 'elevator' || type === 'stairs' ? 1.1 : 0.65)
     };
 
     let mesh;
@@ -27,6 +29,8 @@ export class FurnitureFactory {
       case 'locker': mesh = this.buildLocker(); break;
       case 'phone': mesh = this.buildPhone(); break;
       case 'board': mesh = this.buildBoard(); break;
+      case 'elevator': mesh = this.buildElevator(); break;
+      case 'stairs': mesh = this.buildStairs(); break;
       default: mesh = this.buildBox(); break;
     }
     group.add(mesh);
@@ -169,5 +173,83 @@ export class FurnitureFactory {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.y = 0.4;
     return mesh;
+  }
+
+  // --- 新規追加: エレベーター ---
+  static buildElevator() {
+    const group = new THREE.Group();
+
+    // シャフト枠
+    const shaftGeo = new THREE.BoxGeometry(2.2, 3.2, 1.6);
+    const shaftMat = new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.4, metalness: 0.3 });
+    const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+    shaft.position.y = 1.6;
+    shaft.castShadow = true;
+    shaft.receiveShadow = true;
+    group.add(shaft);
+
+    // ドアパネル
+    const doorGeo = new THREE.BoxGeometry(1.4, 2.4, 0.06);
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 });
+    const door = new THREE.Mesh(doorGeo, doorMat);
+    door.position.set(0, 1.2, 0.82);
+    group.add(door);
+
+    // 中央スリット線
+    const slitGeo = new THREE.BoxGeometry(0.04, 2.4, 0.08);
+    const slitMat = new THREE.MeshBasicMaterial({ color: 0x263238 });
+    const slit = new THREE.Mesh(slitGeo, slitMat);
+    slit.position.set(0, 1.2, 0.83);
+    group.add(slit);
+
+    // 上部フロア表示インジケーター
+    const indGeo = new THREE.BoxGeometry(0.8, 0.25, 0.08);
+    const indMat = new THREE.MeshBasicMaterial({ color: 0xffb300 });
+    const ind = new THREE.Mesh(indGeo, indMat);
+    ind.position.set(0, 2.65, 0.83);
+    group.add(ind);
+
+    return group;
+  }
+
+  // --- 新規追加: 階段 ---
+  static buildStairs() {
+    const group = new THREE.Group();
+    const steps = 5;
+    const stepDepth = 0.35;
+    const stepHeight = 0.25;
+    const width = 1.6;
+    const stairMat = new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.7 });
+
+    for (let i = 0; i < steps; i++) {
+      const h = (i + 1) * stepHeight;
+      const stepGeo = new THREE.BoxGeometry(width, h, stepDepth);
+      const stepMesh = new THREE.Mesh(stepGeo, stairMat);
+      stepMesh.position.set(0, h / 2, -0.7 + (i * stepDepth));
+      stepMesh.castShadow = true;
+      stepMesh.receiveShadow = true;
+      group.add(stepMesh);
+    }
+
+    // 手すり（左右）
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xffb300, roughness: 0.3, metalness: 0.5 });
+    [-0.8, 0.8].forEach(x => {
+      const poleGeo = new THREE.CylinderGeometry(0.035, 0.035, 1.4);
+      const pole1 = new THREE.Mesh(poleGeo, railMat);
+      pole1.position.set(x, 1.2, 0.6);
+      group.add(pole1);
+
+      const pole2 = new THREE.Mesh(poleGeo, railMat);
+      pole2.position.set(x, 0.6, -0.6);
+      group.add(pole2);
+
+      const barGeo = new THREE.BoxGeometry(0.04, 0.04, 1.85);
+      const bar = new THREE.Mesh(barGeo, railMat);
+      bar.rotation.x = Math.PI / 6.2;
+      bar.position.set(x, 1.28, 0);
+      group.add(bar);
+    });
+
+    return group;
   }
 }
