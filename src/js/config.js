@@ -1,41 +1,24 @@
-// src/js/config.js
-export const CONFIG = {
-  GAS_API_URL: "https://script.google.com/macros/s/AKfycbzjOakTpi9SBII8IYt-G-uoBOhHzN8YfrPx3Yt861SVu_h3tgIvHahyKyIr2QcsCLgDRg/exec",
-  FIELD_SIZE: 50,
-  GRID_SIZE: 0.5,
-  GRID_DIVISIONS: 100,
-  MOVE_SPEED: 7.5,
-  ROTATION_SPEED: 14.0,
-  COLLISION_TRIGGER_TIME: 1.2,
-  CAMERA_VIEW_SIZE: 14,
-  CAMERA_ELEVATION: 30,
-  CAMERA_DISTANCE: 26,
-  PLAYER_RADIUS: 0.35,
+﻿// src/js/config.js
 
-  // 衝突によるポップアップ発火の所要時間（秒）
-  COLLISION_TRIGGER_TIME: 2.5,
+export const CONFIG = {
+  FIELD_SIZE: 32,
+  GRID_SIZE: 1.0,
+  GRID_DIVISIONS: 32,
+  PLAYER_RADIUS: 0.4,
+  COLLISION_TRIGGER_TIME: 1.2,
+  CAMERA_DISTANCE: 18,
+  CAMERA_ELEVATION: 22,
+  CAMERA_VIEW_SIZE: 12,
+  GAS_API_URL: "https://script.google.com/macros/s/AKfycbz_XXXXXXXXX/exec",
 
   FLOORS: [
-    { id: 1, name: "1F エントランス・受付", color: 0xe8eaf6 },
-    { id: 2, name: "2F 総務・人事・経理部", color: 0xe0f2f1 },
-    { id: 3, name: "3F 営業本部・企画推進部", color: 0xf5f5f0 },
-    { id: 4, name: "4F DX開発部・システム課", color: 0xe3f2fd },
-    { id: 5, name: "5F マーケティング・制作部", color: 0xfce4ec },
-    { id: 6, name: "6F 会議室・セミナールーム", color: 0xfff3e0 },
-    { id: 7, name: "7F 役員フロア・特別応接室", color: 0xefebe9 },
-    { id: 8, name: "8F カフェ・リフレッシュラウンジ", color: 0xf1f8e9 }
-  ],
-
-  DISTRIBUTIONS: [
-    { id: "dist_01", title: "週次営業進捗レポート", targetRoles: ["課長", "部長"] },
-    { id: "dist_02", title: "社内セキュリティ監査通知", targetRoles: ["全員"] },
-    { id: "dist_03", title: "健康診断案内票", targetRoles: ["全員"] },
-    { id: "dist_04", title: "月次勤怠締め切り通知書", targetRoles: ["リーダー"] },
-    { id: "dist_05", title: "新規プロジェクト要件概要", targetRoles: ["開発", "企画"] },
-    { id: "dist_06", title: "備品発注承認依頼シート", targetRoles: ["課長"] },
-    { id: "dist_07", title: "防災訓練手順チェック表", targetRoles: ["フロア責任者"] },
-    { id: "dist_08", title: "郵便・宅配便受領サイン用紙", targetRoles: ["総務"] },
-    { id: "dist_09", title: "新任研修アンケート", targetRoles: ["新入社員"] },
-    { id: "dist_10", title: "役員会議事録", targetRoles: ["役員"] }
+    { id: 1, name: "1F エントランス・受付・新聞室", color: 0xe8ecef },
+    { id: 2, name: "2F 販売部・総務・経理", color: 0xe0e7ff },
+    { id: 3, name: "3F 編集局・連絡員席", color: 0xf5f5f0 },
+    { id: 4, name: "4F DX推進・システム", color: 0xecfdf5 },
+    { id: 5, name: "5F 制作・文化部・写真映像部", color: 0xfef3c7 },
+    { id: 6, name: "6F ニュースセンター・編制", color: 0xfce7f3 },
+    { id: 7, name: "7F 論説委員会・役員室", color: 0xf3e8ff },
+    { id: 8, name: "8F カフェ・ラウンジ", color: 0xffedd5 }
   ]
 };
