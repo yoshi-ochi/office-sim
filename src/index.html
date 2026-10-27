@@ -9,153 +9,98 @@
   <style>
     /* 家具追加パレット */
     #furniture-palette {
-      position: absolute;
-      bottom: 110px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: none;
-      gap: 8px;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(8px);
-      padding: 10px 14px;
-      border-radius: 24px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-      pointer-events: auto;
-      max-width: 90vw;
-      overflow-x: auto;
-      z-index: 20;
+      position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+      display: none; gap: 8px; background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px); padding: 10px 14px; border-radius: 24px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25); pointer-events: auto; max-width: 90vw; overflow-x: auto; z-index: 20;
     }
-    #furniture-palette.active {
-      display: flex;
-    }
+    #furniture-palette.active { display: flex; }
     .palette-btn {
-      background: #f0f4f8;
-      border: 1px solid #cfd8dc;
-      padding: 8px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: bold;
-      color: #37474f;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.15s, transform 0.1s;
+      background: #f0f4f8; border: 1px solid #cfd8dc; padding: 8px 12px; border-radius: 12px;
+      font-size: 12px; font-weight: bold; color: #37474f; cursor: pointer; white-space: nowrap;
     }
-    .palette-btn:hover { background: #e1f5fe; border-color: #81d4fa; }
-    .palette-btn:active { transform: scale(0.95); }
     .palette-btn.cancel { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
 
-    /* チャットドロワー UI */
+    /* チャットドロワー */
     #chat-drawer {
-      position: absolute;
-      top: 0;
-      right: -360px;
-      width: 340px;
-      max-width: 85vw;
-      height: 100%;
-      background: rgba(255, 255, 255, 0.96);
-      backdrop-filter: blur(12px);
-      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
-      z-index: 30;
-      display: flex;
-      flex-direction: column;
-      transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: auto;
+      position: absolute; top: 0; right: -360px; width: 340px; max-width: 85vw; height: 100%;
+      background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(12px); box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+      z-index: 30; display: flex; flex-direction: column; transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: auto;
     }
-    #chat-drawer.open {
-      right: 0;
+    #chat-drawer.open { right: 0; }
+    .chat-header { padding: 14px 16px; background: #00897b; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+    .chat-tabs { display: flex; background: #eceff1; border-bottom: 1px solid #cfd8dc; }
+    .chat-tab-btn { flex: 1; padding: 10px 4px; font-size: 12px; font-weight: bold; border: none; background: none; color: #546e7a; cursor: pointer; }
+    .chat-tab-btn.active { color: #00897b; background: #fff; border-bottom: 2px solid #00897b; }
+    .chat-messages-container { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #f8f9fa; }
+    .chat-msg { padding: 8px 12px; border-radius: 12px; max-width: 85%; font-size: 13px; line-height: 1.4; }
+    .chat-msg.other { background: #fff; align-self: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .chat-msg.self { background: #e0f2f1; color: #004d40; align-self: flex-end; }
+    .chat-msg-meta { font-size: 10px; color: #78909c; margin-bottom: 3px; }
+    .chat-input-bar { padding: 10px 12px; border-top: 1px solid #e0e0e0; display: flex; gap: 6px; background: #fff; }
+    .chat-input-bar input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 13px; }
+    .chat-input-bar button { padding: 8px 16px; background: #00897b; color: #fff; border: none; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; }
+
+    /* 二要素ログインダイアログ */
+    #login-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px);
+      z-index: 100; display: flex; align-items: center; justify-content: center;
     }
-    .chat-header {
-      padding: 14px 16px;
-      background: #00897b;
-      color: #fff;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .login-box {
+      background: #ffffff; width: 90%; max-width: 400px; padding: 32px; border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); text-align: center;
     }
-    .chat-tabs {
-      display: flex;
-      background: #eceff1;
-      border-bottom: 1px solid #cfd8dc;
+    .login-box h2 { font-size: 20px; color: #0f172a; margin-bottom: 6px; font-weight: 800; }
+    .login-desc { font-size: 12px; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
+    .auth-badge {
+      display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 8px 14px;
+      border-radius: 10px; font-size: 13px; color: #334155; margin-bottom: 16px; font-weight: 600;
     }
-    .chat-tab-btn {
-      flex: 1;
-      padding: 10px 4px;
-      font-size: 12px;
-      font-weight: bold;
-      border: none;
-      background: none;
-      color: #546e7a;
-      cursor: pointer;
+    .login-field {
+      width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px;
+      font-size: 14px; box-sizing: border-box; outline: none; transition: border-color 0.15s;
     }
-    .chat-tab-btn.active {
-      color: #00897b;
-      background: #fff;
-      border-bottom: 2px solid #00897b;
+    .login-field:focus { border-color: #2563eb; }
+    .login-helper { font-size: 11px; color: #94a3b8; text-align: left; margin: 4px 0 16px 2px; }
+    .btn-login-submit {
+      width: 100%; padding: 12px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer; transition: background 0.15s;
     }
-    .chat-messages-container {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background: #f8f9fa;
-    }
-    .chat-msg {
-      padding: 8px 12px;
-      border-radius: 12px;
-      max-width: 85%;
-      font-size: 13px;
-      line-height: 1.4;
-      word-break: break-word;
-    }
-    .chat-msg.other {
-      background: #ffffff;
-      align-self: flex-start;
-      border-bottom-left-radius: 2px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .chat-msg.self {
-      background: #e0f2f1;
-      color: #004d40;
-      align-self: flex-end;
-      border-bottom-right-radius: 2px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .chat-msg-meta {
-      font-size: 10px;
-      color: #78909c;
-      margin-bottom: 3px;
-    }
-    .chat-input-bar {
-      padding: 10px 12px;
-      border-top: 1px solid #e0e0e0;
-      display: flex;
-      gap: 6px;
-      background: #fff;
-    }
-    .chat-input-bar input {
-      flex: 1;
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      border-radius: 20px;
-      outline: none;
-      font-size: 13px;
-    }
-    .chat-input-bar button {
-      padding: 8px 16px;
-      background: #00897b;
-      color: #fff;
-      border: none;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+    .btn-login-submit:hover { background: #1d4ed8; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
+  <!-- ログイン画面 -->
+  <div id="login-overlay">
+    <div class="login-box">
+      <h2>🔐 OfficeSim セキュア認証</h2>
+      <p class="login-desc">許可されたアカウントのみがオフィスデータにアクセスできます。</p>
+      
+      <!-- ステップ1: メールアドレス入力 -->
+      <div id="step-email-area">
+        <input type="email" id="login-email" class="login-field" placeholder="Googleメールアドレス (例: name@gmail.com)">
+        <button id="btn-check-email" class="btn-login-submit">次へ</button>
+      </div>
+
+      <!-- ステップ2-A: パスワード入力 -->
+      <div id="password-form-area" style="display: none;">
+        <div id="login-user-name" class="auth-badge"></div>
+        <input type="password" id="login-password" class="login-field" placeholder="パスワード (4〜20文字)" maxlength="20">
+        <button id="btn-login-exec" class="btn-login-submit">サインイン</button>
+      </div>
+
+      <!-- ステップ2-B: 初回パスワード登録 -->
+      <div id="setup-form-area" style="display: none;">
+        <div id="setup-user-name" class="auth-badge"></div>
+        <p style="color: #0284c7; font-size: 12px; margin-bottom: 8px; font-weight: bold;">初回サインインです。パスワードを設定してください。</p>
+        <input type="password" id="setup-password" class="login-field" placeholder="新しいパスワード (4〜20文字)" maxlength="20">
+        <button id="btn-setup-exec" class="btn-login-submit" style="background: #0284c7;">パスワードを設定して開始</button>
+      </div>
+    </div>
+  </div>
+
   <div id="canvas-container"></div>
 
   <div id="ui-layer">
@@ -175,6 +120,8 @@
       </div>
 
       <div class="nav-group">
+        <span id="user-badge" style="font-size: 12px; font-weight: bold; color: #1e88e5; padding: 4px 8px; background: #e3f2fd; border-radius: 12px;">👤 認証待機中</span>
+        <button id="btn-history" class="btn-mode" style="background: #e65100;">受講履歴</button>
         <button id="btn-chat-toggle" class="btn-mode" style="background: #00897b;">💬 チャット</button>
         <button id="btn-workflow" class="btn-mode" style="background: #0288d1;">業務フロー図</button>
         <button id="btn-dictionary" class="btn-mode" style="background: #7b1fa2;">辞書(自席)</button>
@@ -188,15 +135,12 @@
         <span style="font-weight: bold;">💬 社内コミュニケーション</span>
         <button id="btn-chat-close" style="background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;">✕</button>
       </div>
-      
       <div class="chat-tabs">
         <button class="chat-tab-btn active" data-channel="all">🏢 全社</button>
         <button class="chat-tab-btn" data-channel="floor">🏢 現フロア</button>
         <button class="chat-tab-btn" data-channel="dm">👤 1on1</button>
       </div>
-
       <div id="chat-messages" class="chat-messages-container"></div>
-
       <div class="chat-input-bar">
         <input type="text" id="chat-input-text" placeholder="メッセージを入力...">
         <button id="chat-send-btn">送信</button>
@@ -215,12 +159,12 @@
       <button class="palette-btn cancel" id="btn-palette-close">閉じる</button>
     </div>
 
-    <!-- バーチャルジョイスティック (左下) -->
+    <!-- バーチャルジョイスティック -->
     <div id="joystick-zone">
       <div id="joystick-knob"></div>
     </div>
 
-    <!-- アクションコントロール (右下) -->
+    <!-- アクションコントロール -->
     <div class="action-controls">
       <button id="rotate-btn" class="round-action-btn btn-rotate" title="家具を90度回転">回転</button>
     </div>
@@ -236,7 +180,7 @@
       </div>
     </div>
   </div>
-  
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

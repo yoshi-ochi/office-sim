@@ -18,13 +18,21 @@ class OfficeSimApp {
     this.activeTargets = [];
     this.pulseTimer = 0;
 
+    // トレーニング計測タイマー
+    this.trainingStartTime = 0;
+    this.currentTrainingTaskId = null;
+
+    // 衝突判定 (2.5秒トリガー)
     this.collidingObject = null;
     this.collisionTimer = 0;
     this.isModalActive = false;
 
+    // 認証・ユーザー情報
+    this.currentUser = null;
+
+    // チャット管理
     this.chatChannel = 'all';
     this.chatTarget = 'all';
-    this.myUserName = '社員（自分）';
     this.chatPollInterval = null;
 
     this.clock = new THREE.Clock();
@@ -35,6 +43,7 @@ class OfficeSimApp {
   init() {
     const container = document.getElementById('canvas-container');
 
+    // 1. シーン・アイソメトリックカメラ設定
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xd7e0e5);
 
@@ -43,6 +52,7 @@ class OfficeSimApp {
     this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
     this.updateCamera(0, 0);
 
+    // 2. レンダラー
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -50,6 +60,7 @@ class OfficeSimApp {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
+    // 3. ライティング
     const ambient = new THREE.AmbientLight(0xffffff, 0.75);
     this.scene.add(ambient);
 
@@ -60,6 +71,7 @@ class OfficeSimApp {
     dirLight.shadow.mapSize.height = 2048;
     this.scene.add(dirLight);
 
+    // 4. 床面 & 50cmグリッド
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -71,9 +83,11 @@ class OfficeSimApp {
     grid.position.y = 0.005;
     this.scene.add(grid);
 
+    // 5. プレイヤー・通信サービス初期化
     this.player = new Player(this.scene);
     this.sheetService = new SheetService(CONFIG.GAS_API_URL);
 
+    // 6. 初期フロア読み込み & UIイベント登録
     this.loadFloor(this.currentFloor);
     this.setupEvents();
     this.animate();
@@ -87,13 +101,10 @@ class OfficeSimApp {
   checkCollision(x, z) {
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
-
       const r = obj.userData.collisionRadius || 0.6;
       const dx = x - obj.position.x;
       const dz = z - obj.position.z;
-      const dist = Math.hypot(dx, dz);
-
-      if (dist < (CONFIG.PLAYER_RADIUS + r)) {
+      if (Math.hypot(dx, dz) < (CONFIG.PLAYER_RADIUS + r)) {
         return obj;
       }
     }
@@ -101,6 +112,7 @@ class OfficeSimApp {
   }
 
   async loadFloor(floorId) {
+    // 既存オブジェクトの完全解放 (メモリリーク防止)
     this.floorObjects.forEach(obj => {
       this.scene.remove(obj);
       obj.traverse(child => {
@@ -148,11 +160,8 @@ class OfficeSimApp {
 
   spawnFurnitureInFrontOfPlayer(type) {
     const fwd = this.player.getForwardVector();
-    const targetX = this.player.position.x + fwd.x * 1.5;
-    const targetZ = this.player.position.z + fwd.z * 1.5;
-
-    const snapX = Math.round(targetX / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
-    const snapZ = Math.round(targetZ / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
+    const snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
+    const snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
 
     const newObj = FurnitureFactory.create(type, {
       x: snapX,
@@ -183,13 +192,13 @@ class OfficeSimApp {
       person: obj.userData.person,
       distNeeded: obj.userData.distNeeded || ""
     }));
-
-    const success = await this.sheetService.saveFloorLayout(this.currentFloor, items);
-    if (success) {
+    const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
+    if (res && res.status === 'success') {
       alert(`フロア ${this.currentFloor}F のレイアウトをスプレッドシートに保存しました。`);
     }
   }
 
+  // --- 社内チャット機能 ---
   async loadChatMessages() {
     const container = document.getElementById('chat-messages');
     if (!container) return;
@@ -198,7 +207,7 @@ class OfficeSimApp {
     container.innerHTML = '';
 
     messages.forEach(m => {
-      const isSelf = m.senderName === this.myUserName;
+      const isSelf = this.currentUser && m.senderName === this.currentUser.name;
       const msgDiv = document.createElement('div');
       msgDiv.className = `chat-msg ${isSelf ? 'self' : 'other'}`;
       msgDiv.innerHTML = `
@@ -207,7 +216,6 @@ class OfficeSimApp {
       `;
       container.appendChild(msgDiv);
     });
-
     container.scrollTop = container.scrollHeight;
   }
 
@@ -217,6 +225,7 @@ class OfficeSimApp {
     const text = input.value.trim();
     if (!text) return;
 
+    const sender = this.currentUser ? this.currentUser.name : '匿名社員';
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -225,7 +234,7 @@ class OfficeSimApp {
       timestamp: timeStr,
       channelType: this.chatChannel,
       channelTarget: this.chatTarget,
-      senderName: this.myUserName,
+      senderName: sender,
       message: text
     };
 
@@ -233,10 +242,7 @@ class OfficeSimApp {
     const container = document.getElementById('chat-messages');
     const msgDiv = document.createElement('div');
     msgDiv.className = 'chat-msg self';
-    msgDiv.innerHTML = `
-      <div class="chat-msg-meta">${msgObj.senderName} • ${msgObj.timestamp}</div>
-      <div>${msgObj.message}</div>
-    `;
+    msgDiv.innerHTML = `<div class="chat-msg-meta">${sender} • ${timeStr}</div><div>${text}</div>`;
     container.appendChild(msgDiv);
     container.scrollTop = container.scrollHeight;
 
@@ -244,6 +250,101 @@ class OfficeSimApp {
   }
 
   setupEvents() {
+    const passwordRegex = /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{4,20}$/;
+    let currentAuthEmail = "";
+    let currentAuthUserData = null;
+
+    // 1. Googleメールアドレス照合ステップ
+    document.getElementById('btn-check-email')?.addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value.trim();
+      if (!email) {
+        alert("メールアドレスを入力してください。");
+        return;
+      }
+
+      const res = await this.sheetService.checkEmail(email);
+      if (res && res.status === 'success') {
+        currentAuthEmail = email;
+        currentAuthUserData = res.user;
+
+        document.getElementById('step-email-area').style.display = 'none';
+
+        if (res.hasPassword) {
+          document.getElementById('password-form-area').style.display = 'block';
+          document.getElementById('login-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
+        } else {
+          document.getElementById('setup-form-area').style.display = 'block';
+          document.getElementById('setup-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
+        }
+      } else {
+        alert(res ? res.message : "アクセスが拒否されました。登録済みのメールアドレスではありません。");
+      }
+    });
+
+    // 2. 暗号化パスワードログイン
+    document.getElementById('btn-login-exec')?.addEventListener('click', async () => {
+      const pass = document.getElementById('login-password').value;
+      if (!passwordRegex.test(pass)) {
+        alert("パスワードは4〜20文字の半角英数字・記号で入力してください。");
+        return;
+      }
+
+      const res = await this.sheetService.verifyPassword(currentAuthEmail, pass);
+      if (res && res.status === 'success') {
+        this.currentUser = res.user;
+        document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
+        document.getElementById('login-overlay').style.display = 'none';
+        this.loadFloor(this.currentFloor);
+      } else {
+        alert(res ? res.message : "パスワードが正しくありません。");
+      }
+    });
+
+    // 3. 初回パスワード登録
+    document.getElementById('btn-setup-exec')?.addEventListener('click', async () => {
+      const newPass = document.getElementById('setup-password').value;
+      if (!passwordRegex.test(newPass)) {
+        alert("設定するパスワードは4〜20文字の半角英数字・記号で入力してください。");
+        return;
+      }
+
+      const res = await this.sheetService.setPassword(currentAuthEmail, newPass);
+      if (res && res.status === 'success') {
+        alert("パスワードを設定しました。サインインします。");
+        this.currentUser = currentAuthUserData;
+        document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
+        document.getElementById('login-overlay').style.display = 'none';
+        this.loadFloor(this.currentFloor);
+      } else {
+        alert("パスワード設定に失敗しました。");
+      }
+    });
+
+    // 4. 受講履歴一覧モーダル
+    document.getElementById('btn-history')?.addEventListener('click', async () => {
+      if (!this.currentUser) return;
+      const logs = await this.sheetService.fetchTrainingLogs();
+      let html = '<div style="max-height: 280px; overflow-y: auto;">';
+      if (logs.length === 0) {
+        html += '<p style="color: #78909c; font-size: 13px;">まだ完了したトレーニング履歴はありません。</p>';
+      } else {
+        logs.slice().reverse().forEach(l => {
+          html += `
+            <div style="border-bottom: 1px solid #e2e8f0; padding: 8px 0; font-size: 13px;">
+              <div style="font-weight: bold; color: #1e293b;">🎯 ${l.taskTitle}</div>
+              <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px; margin-top: 4px;">
+                <span>スコア: <strong style="color: #16a34a;">${l.score}点</strong> (所要時間: ${l.clearTimeSec}秒)</span>
+                <span>${l.timestamp}</span>
+              </div>
+            </div>
+          `;
+        });
+      }
+      html += '</div>';
+      this.showModal(`📊 ${this.currentUser.name} さんの受講・実績履歴`, html);
+    });
+
+    // 5. リサイズ & キーボード入力
     window.addEventListener('resize', () => {
       const aspect = window.innerWidth / window.innerHeight;
       const d = CONFIG.CAMERA_VIEW_SIZE;
@@ -258,6 +359,7 @@ class OfficeSimApp {
     window.addEventListener('keydown', e => { this.keys[e.key.toLowerCase()] = true; });
     window.addEventListener('keyup', e => { this.keys[e.key.toLowerCase()] = false; });
 
+    // 6. バーチャルジョイスティック
     const zone = document.getElementById('joystick-zone');
     const knob = document.getElementById('joystick-knob');
     let active = false, startX = 0, startY = 0;
@@ -282,6 +384,7 @@ class OfficeSimApp {
       }
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
 
+      // クォータービュー軸補正
       const rad = Math.atan2(dy, dx) - Math.PI / 4;
       const norm = dist / maxR;
       this.inputVector.x = Math.cos(rad) * norm;
@@ -296,6 +399,7 @@ class OfficeSimApp {
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
 
+    // 7. フロア切り替え
     document.getElementById('floor-select')?.addEventListener('change', e => {
       this.currentFloor = parseInt(e.target.value, 10);
       this.loadFloor(this.currentFloor);
@@ -306,6 +410,7 @@ class OfficeSimApp {
       }
     });
 
+    // 8. チャットドロワー
     const chatDrawer = document.getElementById('chat-drawer');
     document.getElementById('btn-chat-toggle')?.addEventListener('click', () => {
       chatDrawer.classList.add('open');
@@ -338,6 +443,7 @@ class OfficeSimApp {
       if (e.key === 'Enter') this.sendCurrentChatMessage();
     });
 
+    // 9. 家具配置・編集モード
     const editBtn = document.getElementById('btn-edit-mode');
     const rotateBtn = document.getElementById('rotate-btn');
     const palette = document.getElementById('furniture-palette');
@@ -363,9 +469,7 @@ class OfficeSimApp {
     document.querySelectorAll('.palette-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         const type = e.target.getAttribute('data-type');
-        if (type) {
-          this.spawnFurnitureInFrontOfPlayer(type);
-        }
+        if (type) this.spawnFurnitureInFrontOfPlayer(type);
       });
     });
 
@@ -380,6 +484,7 @@ class OfficeSimApp {
       }
     });
 
+    // 10. 家具ドラッグ移動
     const dom = this.renderer.domElement;
     dom.addEventListener('pointerdown', e => {
       if (!this.isEditMode) return;
@@ -404,17 +509,16 @@ class OfficeSimApp {
       const hits = this.raycaster.intersectObject(this.floorPlane);
       if (hits.length > 0) {
         const p = hits[0].point;
-        const sx = Math.round(p.x / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
-        const sz = Math.round(p.z / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
         const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
-        this.selectedObject.position.x = Math.max(-max, Math.min(max, sx));
-        this.selectedObject.position.z = Math.max(-max, Math.min(max, sz));
+        this.selectedObject.position.x = Math.max(-max, Math.min(max, Math.round(p.x / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE));
+        this.selectedObject.position.z = Math.max(-max, Math.min(max, Math.round(p.z / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE));
         if (this.boxHelper) this.boxHelper.update();
       }
     });
 
     window.addEventListener('pointerup', () => { this.isDragging = false; });
 
+    // 11. マニュアル辞書モーダル
     document.getElementById('btn-dictionary')?.addEventListener('click', async () => {
       const terms = await this.sheetService.fetchDictionary();
       let html = '<div style="max-height: 280px; overflow-y: auto;">';
@@ -428,6 +532,7 @@ class OfficeSimApp {
       this.showModal("📖 社内マニュアル・用語辞書 (自席参照)", html);
     });
 
+    // 12. 業務フロー図モーダル
     document.getElementById('btn-workflow')?.addEventListener('click', async () => {
       const flows = await this.sheetService.fetchWorkflows();
       let html = '<p style="margin-bottom: 10px; font-size: 12px; color: #757575;">フローをタップすると、該当のシミュレーション業務が起動します。</p>';
@@ -479,7 +584,6 @@ class OfficeSimApp {
 
   async triggerBoard() {
     const posts = await this.sheetService.fetchBoardPosts();
-
     let listHtml = '<div style="max-height: 200px; overflow-y: auto; margin-bottom: 16px; border: 1px solid #cfd8dc; border-radius: 8px; padding: 8px; background: #fafafa;">';
     posts.slice().reverse().forEach(p => {
       listHtml += `
@@ -494,11 +598,12 @@ class OfficeSimApp {
     });
     listHtml += '</div>';
 
+    const defaultAuthor = this.currentUser ? this.currentUser.name : '社員';
     const formHtml = `
       <div style="background: #f0f4f8; padding: 12px; border-radius: 8px;">
         <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #37474f;">📌 掲示板に新規投稿</div>
         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <input type="text" id="board-author" placeholder="氏名" style="flex: 1; padding: 6px 10px; border: 1px solid #b0bec5; border-radius: 6px; font-size: 12px;">
+          <input type="text" id="board-author" value="${defaultAuthor}" style="flex: 1; padding: 6px 10px; border: 1px solid #b0bec5; border-radius: 6px; font-size: 12px;">
           <select id="board-category" style="padding: 6px 10px; border: 1px solid #b0bec5; border-radius: 6px; font-size: 12px; background: #fff;">
             <option value="連絡">連絡</option>
             <option value="共有">共有</option>
@@ -516,27 +621,21 @@ class OfficeSimApp {
     this.showModal("📌 自席の業務連絡掲示板", listHtml + formHtml);
 
     document.getElementById('board-submit-btn')?.addEventListener('click', async () => {
-      const author = document.getElementById('board-author').value.trim() || '社員';
+      const author = document.getElementById('board-author').value.trim() || defaultAuthor;
       const category = document.getElementById('board-category').value;
       const message = document.getElementById('board-message').value.trim();
 
-      if (!message) {
-        alert("投稿内容を入力してください。");
-        return;
-      }
-
+      if (!message) return;
       const now = new Date();
       const dateStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      const newPost = {
+      await this.sheetService.saveBoardPost({
         id: `post_${Date.now()}`,
         date: dateStr,
         author: author,
         category: category,
         message: message
-      };
-
-      await this.sheetService.saveBoardPost(newPost);
+      });
       alert("掲示板に投稿しました！");
       this.closeModal();
     });
@@ -578,7 +677,10 @@ class OfficeSimApp {
     const task = CONFIG.DISTRIBUTIONS.find(d => d.id === distId);
     if (!task) return;
 
+    this.currentTrainingTaskId = distId;
+    this.trainingStartTime = Date.now();
     this.activeTargets = [];
+
     this.floorObjects.forEach(obj => {
       const data = obj.userData;
       let match = false;
@@ -600,6 +702,7 @@ class OfficeSimApp {
       if (obj.userData.redDot) obj.userData.redDot.visible = false;
     });
     this.activeTargets = [];
+    this.currentTrainingTaskId = null;
   }
 
   showModal(title, body) {
@@ -636,6 +739,7 @@ class OfficeSimApp {
     const hitObject = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
     this.updateCamera(this.player.position.x, this.player.position.z);
 
+    // 2.5秒衝突押し当て判定
     if (!this.isModalActive && hitObject) {
       if (this.collidingObject === hitObject) {
         this.collisionTimer += delta;
@@ -652,6 +756,7 @@ class OfficeSimApp {
       this.collisionTimer = 0;
     }
 
+    // 配布物トレーニング達成判定 & 履歴自動保存
     if (this.activeTargets.length > 0) {
       this.pulseTimer += delta * 6;
       const s = 1.0 + Math.sin(this.pulseTimer) * 0.25;
@@ -662,8 +767,29 @@ class OfficeSimApp {
           if (this.player.position.distanceTo(obj.position) < 1.4) {
             obj.userData.redDot.visible = false;
             this.activeTargets.splice(i, 1);
+
             if (this.activeTargets.length === 0) {
-              alert("🎉 全ての座席への配布が完了しました！トレーニング達成です。");
+              const elapsedSec = ((Date.now() - this.trainingStartTime) / 1000).toFixed(1);
+              const taskInfo = CONFIG.DISTRIBUTIONS.find(d => d.id === this.currentTrainingTaskId);
+              const score = Math.max(50, Math.round(100 - (elapsedSec > 40 ? (elapsedSec - 40) * 1.5 : 0)));
+
+              alert(`🎉 配布業務完了！\nクリアタイム: ${elapsedSec}秒 / 獲得スコア: ${score}点`);
+
+              if (this.currentUser) {
+                const now = new Date();
+                const timeStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                this.sheetService.saveTrainingLog({
+                  id: `log_${Date.now()}`,
+                  timestamp: timeStr,
+                  email: this.currentUser.email,
+                  userName: this.currentUser.name,
+                  taskId: this.currentTrainingTaskId,
+                  taskTitle: taskInfo ? taskInfo.title : "業務配布",
+                  clearTimeSec: elapsedSec,
+                  score: score
+                });
+              }
+              this.currentTrainingTaskId = null;
             }
           }
         }
