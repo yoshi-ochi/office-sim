@@ -1,11 +1,13 @@
 ﻿// src/js/config.js
 
 export const CONFIG = {
-  FIELD_SIZE: 32,
-  GRID_SIZE: 1.0,
-  GRID_DIVISIONS: 32,
-  PLAYER_RADIUS: 0.4,
-  COLLISION_TRIGGER_TIME: 1.2,
+  FIELD_SIZE: 50,
+  GRID_SIZE: 0.5,         // 50cm間隔グリッド
+  GRID_DIVISIONS: 64,     // 32m / 0.5m = 64分割 (50cmマス)
+  PLAYER_RADIUS: 0.35,
+  MOVE_SPEED: 5.0,        // Player.js で必須の移動速度
+  ROTATION_SPEED: 12.0,   // Player.js で必須の旋回補間速度
+  COLLISION_TRIGGER_TIME: 1.2, // 1.2秒接触判定
   CAMERA_DISTANCE: 18,
   CAMERA_ELEVATION: 22,
   CAMERA_VIEW_SIZE: 12,

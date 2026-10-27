@@ -21,15 +21,16 @@ export class Minimap {
     const toMapX = x => ((x + this.fieldSize / 2) / this.fieldSize) * w;
     const toMapY = z => ((z + this.fieldSize / 2) / this.fieldSize) * w;
 
-    // 家具の描画 (グレー/シアン)
+    // 家具・設備の描画
     floorObjects.forEach(obj => {
       const mx = toMapX(obj.position.x);
       const my = toMapY(obj.position.z);
+      const t = obj.userData.type || '';
 
-      if (obj.userData.type === 'elevator' || obj.userData.type === 'stairs') {
-        ctx.fillStyle = '#f59e0b';
+      if (t === 'elevator' || t === 'stairs_up' || t === 'stairs_down' || t === 'stairs') {
+        ctx.fillStyle = t === 'stairs_up' ? '#22c55e' : (t === 'stairs_down' ? '#f97316' : '#f59e0b');
         ctx.fillRect(mx - 3, my - 3, 6, 6);
-      } else if (obj.userData.type === 'desk') {
+      } else if (t === 'desk') {
         ctx.fillStyle = obj.userData.isMySeat ? '#38bdf8' : '#94a3b8';
         ctx.fillRect(mx - 3, my - 2, 6, 4);
       } else {
@@ -46,10 +47,10 @@ export class Minimap {
       }
     });
 
-    // プレイヤーの自位置 (青い矢印/丸)
+    // プレイヤー自位置
     const px = toMapX(playerPos.x);
     const py = toMapY(playerPos.z);
-    ctx.fillStyle = '#2563eb';
+    ctx.fillStyle = '#ef4444'; // 自アバターの色（赤）に合わせる
     ctx.beginPath();
     ctx.arc(px, py, 4.5, 0, Math.PI * 2);
     ctx.fill();
