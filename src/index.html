@@ -173,6 +173,18 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=elevator_stairs_01"></script>
+  <!-- 静的スクリプトタグを削除し、動的キャッシュクリアローダーを配置 -->
+  <script>
+    (function() {
+      // 起動のたびに現在時刻のタイムスタンプを付与してキャッシュを100%無視する
+      const t = Date.now();
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = `./js/main.js?t=${t}`;
+      document.body.appendChild(script);
+    })();
+  </script>
+</body>
+</html>
 </body>
 </html>

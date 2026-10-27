@@ -1,4 +1,5 @@
-// src/js/main.js
+// src/js/main.js 先頭
+const t = Date.now();
 import { CONFIG } from './config.js';
 import { FurnitureFactory } from './entities/Furniture.js';
 import { Player } from './entities/Player.js';
