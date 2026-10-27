@@ -1,10 +1,33 @@
 // src/js/services/SheetService.js
+
 export class SheetService {
   constructor(apiEndpoint) {
     this.apiEndpoint = apiEndpoint;
   }
 
-  // クライアント側でのSHA-256暗号化ハッシュ計算（ソルト付加）
+  /**
+   * GAS向けPOST通信共通メソッド
+   * text/plain形式で送信することでCORS preflight（OPTIONSリクエスト）をスキップし、
+   * リダイレクトやブラウザ制限によるデータ欠損を防止して確実にスプレッドシートへ書き込みます。
+   */
+  async postToGas(payload) {
+    try {
+      const res = await fetch(this.apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn("GAS通信エラー:", e);
+      return null;
+    }
+  }
+
+  /**
+   * クライアント側でのSHA-256暗号化ハッシュ計算（ソルト付加）
+   * パスワード原文を通信路に乗せず、不可逆ハッシュ値のみを送信・保存します。
+   */
   async hashPassword(password, salt) {
     const encoder = new TextEncoder();
     const data = encoder.encode(password + ":" + salt.toLowerCase());
@@ -13,17 +36,21 @@ export class SheetService {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // Google認証ステータスとユーザー情報を取得
+  // --- 認証関連 ---
+
+  /**
+   * Googleアカウントの認可ステータスおよびユーザー情報の取得
+   */
   async fetchAuthStatus() {
     try {
       const res = await fetch(`${this.apiEndpoint}?action=getAuthStatus`);
       return await res.json();
-    } catch {
-      // オフラインモック
+    } catch (e) {
+      console.warn("AuthStatus取得失敗。ローカルテスト用フォールバックを使用します:", e);
       return {
         status: "success",
-        email: "yoshi@example.com",
-        name: "落合 慶亮",
+        email: "local-tester@example.com",
+        name: "テスト社員",
         department: "DX開発部",
         role: "主任",
         hasPassword: true
@@ -31,42 +58,24 @@ export class SheetService {
     }
   }
 
-  // 暗号化ハッシュを送信してパスワード認証
+  /**
+   * 暗号化ハッシュを送信してパスワードを検証
+   */
   async verifyPassword(email, rawPassword) {
     const hash = await this.hashPassword(rawPassword, email);
-    try {
-      const res = await fetch(this.apiEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "verifyPassword", passwordHash: hash })
-      });
-      return await res.json();
-    } catch {
-      // オフライン用フォールバック
-      if (rawPassword === "pass123") {
-        return {
-          status: "success",
-          user: { email, name: "落合 慶亮", department: "DX開発部", role: "主任" }
-        };
-      }
-      return { status: "fail", message: "認証に失敗しました。" };
-    }
+    const res = await this.postToGas({ action: "verifyPassword", passwordHash: hash });
+    return res || { status: "fail", message: "認証通信に失敗しました。" };
   }
 
-  // 初回パスワードの暗号化登録
+  /**
+   * 初回パスワードの暗号化登録・保存
+   */
   async setPassword(email, rawPassword) {
     const hash = await this.hashPassword(rawPassword, email);
-    try {
-      const res = await fetch(this.apiEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "setPassword", passwordHash: hash })
-      });
-      return await res.json();
-    } catch {
-      return { status: "success" };
-    }
+    return await this.postToGas({ action: "setPassword", passwordHash: hash });
   }
+
+  // --- マスターデータ（辞書・業務フロー）取得 ---
 
   async fetchDictionary() {
     try {
@@ -88,6 +97,8 @@ export class SheetService {
     }
   }
 
+  // --- フロアレイアウト ---
+
   async fetchFloorLayout(floorId) {
     try {
       const res = await fetch(`${this.apiEndpoint}?action=getLayout&floor=${floorId}`);
@@ -99,18 +110,10 @@ export class SheetService {
   }
 
   async saveFloorLayout(floorId, items) {
-    try {
-      await fetch(this.apiEndpoint, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "saveLayout", floor: floorId, items })
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return await this.postToGas({ action: "saveLayout", floor: floorId, items });
   }
+
+  // --- 自席業務連絡掲示板 ---
 
   async fetchBoardPosts() {
     try {
@@ -123,18 +126,10 @@ export class SheetService {
   }
 
   async saveBoardPost(postData) {
-    try {
-      await fetch(this.apiEndpoint, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "saveBoardPost", post: postData })
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return await this.postToGas({ action: "saveBoardPost", post: postData });
   }
+
+  // --- 社内チャット ---
 
   async fetchChatMessages(channelType, channelTarget) {
     try {
@@ -147,32 +142,10 @@ export class SheetService {
   }
 
   async sendChatMessage(msgData) {
-    try {
-      await fetch(this.apiEndpoint, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sendChatMessage", message: msgData })
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return await this.postToGas({ action: "sendChatMessage", message: msgData });
   }
 
-  async saveTrainingLog(logData) {
-    try {
-      await fetch(this.apiEndpoint, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "saveTrainingLog", log: logData })
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  // --- トレーニング実績ログ ---
 
   async fetchTrainingLogs() {
     try {
@@ -184,10 +157,17 @@ export class SheetService {
     }
   }
 
+  async saveTrainingLog(logData) {
+    return await this.postToGas({ action: "saveTrainingLog", log: logData });
+  }
+
+  // --- オフライン・通信切断時用フォールバックモック ---
+
   getMockDictionary() {
     return [
-      { term: "稟議書（りんぎしょ）", category: "社内手続き", content: "決裁権限規定に基づく業務購入や契約締結のための社内申請書類。" },
-      { term: "複合機トナー交換手順", category: "オフィス機器", content: "各階複合機のトナーが切れた場合、備品棚から同一型番を取得し交換します。" }
+      { term: "稟議書（りんぎしょ）", category: "社内手続き", content: "決裁権限規定に基づく業務購入や契約締結のための社内申請書類。5万円以上の物品購入は自席の内線から総務部へ確認の上、起案します。" },
+      { term: "複合機トナー交換手順", category: "オフィス機器", content: "各階複合機のトナーが切れた場合、備品棚から同一型番を取得し、レバーロックを解除して水平に抜き差しします。" },
+      { term: "セキュリティカード紛失時対応", category: "セキュリティ", content: "即座に1F防災センターへ連絡しカードアクセスを失効させてください。" }
     ];
   }
 
@@ -201,13 +181,25 @@ export class SheetService {
 
   getMockBoardPosts() {
     return [
-      { date: "2026/10/26 09:30", author: "総務部", category: "連絡", message: "本日の15:00より空調設備の一斉点検を行います。" }
+      { date: "2026/10/26 09:30", author: "総務部", category: "連絡", message: "本日の15:00より空調設備の一斉点検を行います。" },
+      { date: "2026/10/26 11:15", author: "営業推進部", category: "共有", message: "週次営業進捗レポートの提出期限は今週金曜18:00までとなります。" }
     ];
   }
 
   getMockChatMessages(channelType) {
+    if (channelType === 'floor') {
+      return [
+        { id: "m_f1", timestamp: "10:15", senderName: "佐藤 課長", message: "本日のフロアミーティングは14時から6F会議室です。" },
+        { id: "m_f2", timestamp: "10:20", senderName: "鈴木 主任", message: "承知いたしました。資料準備しておきます。" }
+      ];
+    } else if (channelType === 'dm') {
+      return [
+        { id: "m_d1", timestamp: "11:00", senderName: "田中 相談役", message: "先ほどの研修マニュアル、非常に分かりやすかったです！" }
+      ];
+    }
     return [
-      { id: "m_1", timestamp: "10:15", senderName: "佐藤 課長", message: "本日のフロアミーティングは14時から6F会議室です。" }
+      { id: "m_a1", timestamp: "09:00", senderName: "全社アナウンス", message: "おはようございます。本日もよろしくお願いいたします。" },
+      { id: "m_a2", timestamp: "11:30", senderName: "人事総務", message: "健康診断の問診票を各席へ配布中ですのでご記入ください。" }
     ];
   }
 }
