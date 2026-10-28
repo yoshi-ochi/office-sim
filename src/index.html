@@ -55,205 +55,17 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-  <!-- 1画面一括ログインオーバーレイ -->
-  <div id="login-overlay" class="modal-overlay active" style="z-index: 999;">
-    <div class="modal-window" style="max-width: 380px; text-align: center;">
-      <div style="font-size: 28px; margin-bottom: 8px;">🏢</div>
-      <div class="modal-header" style="justify-content: center; border: none; margin-bottom: 6px;">
-        社内オフィスシミュレーター
-      </div>
-      <div style="font-size: 12px; color: #64748b; margin-bottom: 20px;">
-        メールアドレスとパスワードを入力してログインしてください
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
-        <div>
-          <label style="font-size: 11px; font-weight: bold; color: #475569;">メールアドレス</label>
-          <input type="email" id="login-email" placeholder="user@kahoku.co.jp" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13px; margin-top: 4px; outline: none;">
-        </div>
-        <div>
-          <label style="font-size: 11px; font-weight: bold; color: #475569;">パスワード</label>
-          <input type="password" id="login-password" placeholder="••••••••" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13px; margin-top: 4px; outline: none;">
-        </div>
-        <button id="btn-login-unified" class="btn-dialog btn-primary" style="width: 100%; padding: 12px; font-size: 14px; margin-top: 8px; border-radius: 8px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
-          ログイン
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- シンプル・ローディングオーバーレイ (Loading... と サークルのみ) -->
-  <div id="global-loading-overlay" style="
+    <!-- 階移動専用 2Dコンポジット描画キャンバス -->
+  <canvas id="transition-canvas" style="
     display: none;
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(15, 23, 42, 0.7);
-    backdrop-filter: blur(4px);
-    z-index: 9999;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    pointer-events: auto;
-  ">
-    <div class="circle-spinner"></div>
-    <div style="
-      margin-top: 18px;
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    ">Loading...</div>
-  </div>
-
-  <div id="canvas-container"></div>
-
-  <div id="minimap-container">
-    <canvas id="minimap-canvas" width="140" height="140"></canvas>
-  </div>
-
-  <div id="ui-layer">
-    <header class="top-nav">
-      <div class="nav-group">
-        <span class="nav-label">フロア:</span>
-        <select id="floor-select" class="floor-select">
-          <option value="1">1F エントランス・受付・新聞室</option>
-          <option value="2">2F 販売部・総務・経理</option>
-          <option value="3">3F 編集局・連絡員席</option>
-          <option value="4">4F DX推進・システム</option>
-          <option value="5">5F 制作・文化部・写真映像部</option>
-          <option value="6" selected>6F ニュースセンター・編制</option>
-          <option value="7">7F 論説委員会・役員室</option>
-          <option value="8">8F カフェ・ラウンジ</option>
-        </select>
-      </div>
-
-      <div class="nav-group">
-        <button id="btn-account-manage" class="btn-mode" style="background: #1e293b; color: #fff;">
-          <span id="user-badge">👤 アカウント</span>
-        </button>
-        <div style="position: relative; display: inline-block;">
-          <button id="btn-chat-toggle" class="btn-mode" style="background: #00897b; color: #fff;">💬 チャット</button>
-          <span id="chat-unread-badge" class="badge-counter">0</span>
-        </div>
-        <button id="btn-return-myseat" class="btn-mode" style="background: #2563eb; color: #fff;">🏠 自席へ戻る</button>
-        <button id="btn-edit-mode" class="btn-mode" style="background: #475569; color: #fff;">🛠️ レイアウト</button>
-      </div>
-    </header>
-
-    <div id="chat-drawer">
-      <div class="chat-header">
-        <span style="font-weight: bold;">💬 社内チャット</span>
-        <button id="btn-chat-close" style="background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;">✕</button>
-      </div>
-      <div class="chat-tabs">
-        <button class="chat-tab-btn active" data-channel="all">🏢 全社</button>
-        <button class="chat-tab-btn" data-channel="floor">🏢 現フロア</button>
-        <button class="chat-tab-btn" data-channel="dm">👤 1on1</button>
-      </div>
-      <div id="chat-messages" class="chat-messages-container"></div>
-      <div class="chat-input-bar">
-        <input type="text" id="chat-input-text" placeholder="メッセージを入力...">
-        <button id="chat-send-btn">送信</button>
-      </div>
-    </div>
-
-    <div id="furniture-action-bar">
-      <button id="btn-f-rotate" class="fab-btn fab-rotate">🔄 45°回転</button>
-      <button id="btn-f-edit" class="fab-btn fab-edit">✏️ 属性編集</button>
-      <button id="btn-f-delete" class="fab-btn fab-delete">🗑️ 撤去</button>
-    </div>
-
-    <!-- カルーセルスライド式 家具選択パレット -->
-    <div id="furniture-carousel-modal" style="
-      position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
-      display: none; flex-direction: column; align-items: center;
-      background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
-      border: 1.5px solid rgba(255, 255, 255, 0.2); border-radius: 20px;
-      padding: 12px 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-      z-index: 26; pointer-events: auto; width: 280px; text-align: center; color: #fff;
-    ">
-      <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 6px;">
-        <span id="palette-item-cat" style="font-size: 11px; color: #38bdf8; font-weight: bold;">[机]</span>
-        <span id="palette-item-index" style="font-size: 11px; color: #94a3b8;">1 / 16</span>
-        <button id="btn-carousel-close" style="background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer;">✕</button>
-      </div>
-
-      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 4px 0;">
-        <button id="btn-palette-prev" style="
-          background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
-          width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        ">〈</button>
-
-        <div style="width: 170px; height: 140px; display: flex; align-items: center; justify-content: center; position: relative;">
-          <canvas id="palette-preview-canvas" width="180" height="180" style="width: 140px; height: 140px;"></canvas>
-        </div>
-
-        <button id="btn-palette-next" style="
-          background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
-          width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        ">〉</button>
-      </div>
-
-      <div id="palette-item-name" style="font-size: 13px; font-weight: bold; margin: 4px 0 8px; color: #f8fafc;">標準デスク (150×80)</div>
-
-      <div id="shelf-dimension-controls" style="display: none; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 6px; width: 100%; margin-bottom: 8px; font-size: 11px; box-sizing: border-box;">
-        <div style="margin-bottom: 4px; color: #fde047; font-weight: bold;">棚サイズ指定 (m)</div>
-        <div style="display: flex; gap: 4px;">
-          <input type="number" id="shelf-inp-w" value="1.2" step="0.1" title="幅" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
-          <input type="number" id="shelf-inp-d" value="0.45" step="0.05" title="奥行" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
-          <input type="number" id="shelf-inp-h" value="1.8" step="0.1" title="高さ" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
-        </div>
-      </div>
-
-      <button id="btn-palette-place" style="
-        width: 100%; padding: 8px 0; background: #2563eb; color: #fff; font-size: 13px;
-        font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
-      ">＋ この家具を配置</button>
-    </div>
-
-    <div id="joystick-zone"><div id="joystick-knob"></div></div>
-
-    <div id="info-modal" class="modal-overlay">
-      <div class="modal-window">
-        <div id="modal-title" class="modal-header">インフォメーション</div>
-        <div id="modal-content" class="modal-body">内容がここに表示されます。</div>
-        <div class="modal-footer">
-          <button id="modal-close-btn" class="btn-dialog btn-close">閉じる</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <button id="btn-open-palette-fab">🪑 家具パレット</button>
-
-  <!-- アイリスアウト/イン用 シネマティックトランジション -->
-    <!-- キャラクター中心アイリス暗転＆明転オーバーレイ -->
-    <!-- 円で型抜きされた暗転幕（外側が黒く、穴が縮小して最後に暗転） -->
-  <div id="iris-overlay" style="
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    z-index: 999999;
     pointer-events: none;
-    z-index: 99999;
-    overflow: hidden;
-  ">
-    <div id="iris-hole" style="
-      position: absolute;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 0 9999px #0b0f19;
-      pointer-events: none;
-    "></div>
-  </div>
+  "></canvas>
 
   <script>
     (function() {
@@ -265,4 +77,5 @@
   </script>
 </body>
 </html>
+
 

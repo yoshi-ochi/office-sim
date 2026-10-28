@@ -384,15 +384,13 @@ class OfficeSimApp {
     }
   }
 
-  // ★ シネマティック階移動トランジション
+  // ★ 階移動モーション再構築版（Canvas型抜きアイリス＆ジワリ明転）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
     this.closeModal();
 
-    const iris = document.getElementById('iris-overlay');
-
-    // 1. 移動モーション（エレベーター入室 or 階段昇降）
+    // 1. 移動モーション（エレベーター扉開閉・入室 / 階段昇降）
     if (interactObj && interactObj.userData.isElevator) {
       const doorL = interactObj.userData.doorL;
       const doorR = interactObj.userData.doorR;
@@ -419,31 +417,77 @@ class OfficeSimApp {
       }
     }
 
-    // 2. 丸状暗転（外側から縮小し、キャラ周辺を残した後に最後キャラ自身が暗転）
-    if (iris) {
+    // 2. Canvas 2D 型抜きアニメーションの準備
+    const cvs = document.getElementById('transition-canvas');
+    const ctx = cvs ? cvs.getContext('2d') : null;
+
+    if (cvs && ctx) {
+      cvs.width = window.innerWidth;
+      cvs.height = window.innerHeight;
+      cvs.style.display = 'block';
+
+      // 画面上のキャラクター頭部スクリーン座標を算出
       const p = this.player.position.clone();
-      p.y += 0.8;
+      p.y += 0.85;
       p.project(this.camera);
-      const screenX = (p.x * 0.5 + 0.5) * window.innerWidth;
-      const screenY = (-(p.y * 0.5) + 0.5) * window.innerHeight;
+      const cx = (p.x * 0.5 + 0.5) * cvs.width;
+      const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
+      const maxR = Math.hypot(cvs.width, cvs.height);
 
-      iris.style.display = 'block';
-      iris.style.opacity = '1';
-      iris.style.transition = 'clip-path 0.55s cubic-bezier(0.25, 1, 0.5, 1)';
-      iris.style.clipPath = 'circle(150% at ' + screenX + 'px ' + screenY + 'px)';
+      // 黒幕を描き、中心の円だけ透明に型抜く描画関数
+      const drawIris = (radius) => {
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        // 全面を黒で塗る
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = '#0b0f19';
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+        // 半径 > 0 のとき、キャラクター位置を円形に型抜く（消しゴム効果）
+        if (radius > 0) {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      };
 
-      // ステップA: キャラクターの頭元を残すスポットライト状態（半径 48px）まで縮小
-      await new Promise(r => setTimeout(r, 30));
-      iris.style.clipPath = 'circle(48px at ' + screenX + 'px ' + screenY + 'px)';
-      await new Promise(r => setTimeout(r, 580));
+      // 【フェーズA】外側が黒く穴が狭まり、キャラクター周囲（半径45px）まで縮小
+      const durationA = 600; // 0.6秒
+      const startTimeA = performance.now();
+      await new Promise(resolve => {
+        const animA = (now) => {
+          const progress = Math.min(1, (now - startTimeA) / durationA);
+          // イージング（滑らかな減速）
+          const ease = 1 - Math.pow(1 - progress, 3);
+          const currentR = maxR - (maxR - 45) * ease;
+          drawIris(currentR);
+          if (progress < 1) requestAnimationFrame(animA);
+          else resolve();
+        };
+        requestAnimationFrame(animA);
+      });
 
-      // ステップB: 最後にキャラクター自身がキュッと暗転（0px）して完全な暗転へ
-      iris.style.transition = 'clip-path 0.28s cubic-bezier(0.4, 0, 1, 1)';
-      iris.style.clipPath = 'circle(0px at ' + screenX + 'px ' + screenY + 'px)';
-      await new Promise(r => setTimeout(r, 300));
+      // キャラクターが見えている状態で一瞬の間 (120ms)
+      await new Promise(r => setTimeout(r, 120));
+
+      // 【フェーズB】最後にキャラクターの穴が 0px へと閉じて完全暗転
+      const durationB = 220; // 0.22秒
+      const startTimeB = performance.now();
+      await new Promise(resolve => {
+        const animB = (now) => {
+          const progress = Math.min(1, (now - startTimeB) / durationB);
+          const currentR = 45 * (1 - progress);
+          drawIris(currentR);
+          if (progress < 1) requestAnimationFrame(animB);
+          else resolve();
+        };
+        requestAnimationFrame(animB);
+      });
+
+      // 完全に真っ黒な状態を維持
+      drawIris(0);
     }
 
-    // 3. 暗転中に裏でロードを実行（ローディング画面は非表示）
+    // 3. 完全暗転の裏でフロア読み込み（ローディングUIは一切出さない）
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
@@ -458,13 +502,25 @@ class OfficeSimApp {
     this.player.position.y = 0;
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // 4. 全体がジワリと明転（フェードアウト）
-    if (iris) {
-      iris.style.transition = 'opacity 0.75s ease';
-      iris.style.opacity = '0';
-      await new Promise(r => setTimeout(r, 780));
-      iris.style.display = 'none';
-      iris.style.transition = '';
+    // 4. 新フロアがジワリと明転（Canvas全体のAlphaを 1.0 -> 0.0 へフェード）
+    if (cvs && ctx) {
+      const fadeDuration = 700; // 0.7秒
+      const fadeStart = performance.now();
+      await new Promise(resolve => {
+        const animFade = (now) => {
+          const progress = Math.min(1, (now - fadeStart) / fadeDuration);
+          const alpha = 1 - progress;
+          ctx.clearRect(0, 0, cvs.width, cvs.height);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = gba(11, 15, 25, ${alpha});
+          ctx.fillRect(0, 0, cvs.width, cvs.height);
+          if (progress < 1) requestAnimationFrame(animFade);
+          else resolve();
+        };
+        requestAnimationFrame(animFade);
+      });
+      cvs.style.display = 'none';
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
     }
 
     this.isTransitioning = false;
@@ -1201,4 +1257,5 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
