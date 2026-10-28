@@ -87,7 +87,7 @@ class OfficeSimApp {
     this.scene.add(this.gridHelper);
 
     this.player = new Player(this.scene);
-    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 1.8);
+    this.player.position.set(-4, 0, -1.0);
 
     this.sheetService = new SheetService(CONFIG.GAS_API_URL);
     this.minimap = new Minimap('minimap-canvas');
@@ -117,7 +117,7 @@ class OfficeSimApp {
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
       const r = obj.userData.collisionRadius || 0.65;
-      if (Math.hypot(x - obj.position.x, z - obj.position.z) < ((CONFIG.PLAYER_RADIUS || 0.35) + r)) {
+      if (Math.hypot(x - obj.position.x, z - obj.position.z) < 0.55) {
         return obj;
       }
     }
@@ -207,7 +207,7 @@ class OfficeSimApp {
       if (select) select.value = String(this.mySeatFloor);
       this.loadFloor(this.mySeatFloor);
     }
-    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 1.8);
+    this.player.position.set(-4, 0, -1.0);
     this.player.targetRotation = Math.PI;
     this.updateCamera(this.player.position.x, this.player.position.z);
   }
@@ -1085,5 +1085,6 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
