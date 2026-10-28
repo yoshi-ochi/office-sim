@@ -1,4 +1,4 @@
-// src/js/ui/FurnitureEditor.js
+﻿// src/js/ui/FurnitureEditor.js
 import { CONFIG } from '../config.js';
 import { FurnitureFactory } from '../entities/Furniture.js';
 
@@ -8,7 +8,6 @@ export class FurnitureEditor {
     this.actionBar = document.getElementById('furniture-action-bar');
     this.carouselModal = document.getElementById('furniture-carousel-modal');
 
-    // 選択可能なオブジェクトリスト
     this.items = [
       { type: 'desk_150_80', name: '標準デスク (150×80)', category: '机' },
       { type: 'desk_120_70', name: 'コンパクトデスク (120×70)', category: '机' },
@@ -30,7 +29,6 @@ export class FurnitureEditor {
 
     this.currentIndex = 0;
 
-    // スナップ枠
     const snapGeo = new THREE.BoxGeometry(CONFIG.GRID_SIZE, 0.05, CONFIG.GRID_SIZE);
     const snapMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.5 });
     this.snapBox = new THREE.Mesh(snapGeo, snapMat);
@@ -41,7 +39,6 @@ export class FurnitureEditor {
     this.setupEvents();
   }
 
-  // --- カルーセル用 3Dプレビューレンダラー初期化 ---
   initPreviewScene() {
     this.previewCanvas = document.getElementById('palette-preview-canvas');
     if (!this.previewCanvas) return;
@@ -65,11 +62,10 @@ export class FurnitureEditor {
 
     this.previewCurrentMesh = null;
 
-    // プレビューアニメーションループ
     const anim = () => {
       requestAnimationFrame(anim);
       if (this.carouselModal && this.carouselModal.classList.contains('active') && this.previewCurrentMesh) {
-        this.previewCurrentMesh.rotation.y += 0.015; // ゆっくり回転
+        this.previewCurrentMesh.rotation.y += 0.015;
         this.previewRenderer.render(this.previewScene, this.previewCamera);
       }
     };
@@ -86,7 +82,6 @@ export class FurnitureEditor {
     const previewObj = FurnitureFactory.create(item.type, { x: 0, z: 0, rotation: 0 });
     previewObj.position.set(0, 0, 0);
 
-    // プレビュー用にスケール微調整
     if (item.type === 'locker_300_60' || item.type === 'desk_250_100') {
       previewObj.scale.set(0.65, 0.65, 0.65);
     } else if (item.type.includes('stairs') || item.type === 'elevator') {
@@ -98,7 +93,6 @@ export class FurnitureEditor {
     this.previewCurrentMesh = previewObj;
     this.previewScene.add(this.previewCurrentMesh);
 
-    // テキスト情報更新
     const nameEl = document.getElementById('palette-item-name');
     const catEl = document.getElementById('palette-item-cat');
     const idxEl = document.getElementById('palette-item-index');
@@ -106,7 +100,6 @@ export class FurnitureEditor {
     if (catEl) catEl.innerText = `[${item.category}]`;
     if (idxEl) idxEl.innerText = `${this.currentIndex + 1} / ${this.items.length}`;
 
-    // 棚の場合のみサイズ入力欄を表示
     const shelfCustomBox = document.getElementById('shelf-dimension-controls');
     if (shelfCustomBox) {
       shelfCustomBox.style.display = (item.type === 'custom_shelf') ? 'block' : 'none';
@@ -114,7 +107,6 @@ export class FurnitureEditor {
   }
 
   setupEvents() {
-    // 左右矢印スライド
     document.getElementById('btn-palette-prev')?.addEventListener('click', () => {
       this.currentIndex = (this.currentIndex - 1 + this.items.length) % this.items.length;
       this.updatePreviewModel();
@@ -125,7 +117,6 @@ export class FurnitureEditor {
       this.updatePreviewModel();
     });
 
-    // 「配置する」ボタン
     document.getElementById('btn-palette-place')?.addEventListener('click', () => {
       const item = this.items[this.currentIndex];
       let extraData = {};
@@ -137,7 +128,6 @@ export class FurnitureEditor {
       this.app.spawnFurnitureInFrontOfPlayer(item.type, extraData);
     });
 
-    // 45度回転
     document.getElementById('btn-f-rotate')?.addEventListener('click', () => {
       if (this.app.selectedObject) {
         this.app.selectedObject.rotation.y = (this.app.selectedObject.rotation.y + Math.PI / 4) % (Math.PI * 2);
@@ -145,15 +135,13 @@ export class FurnitureEditor {
       }
     });
 
-    // 撤去
+    // 確認ダイアログを出さずに即座に撤去
     document.getElementById('btn-f-delete')?.addEventListener('click', () => {
-      if (!this.app.selectedObject) return;
-      if (confirm(`選択中の「${this.app.selectedObject.userData.role}」を撤去しますか？`)) {
+      if (this.app.selectedObject) {
         this.deleteSelected();
       }
     });
 
-    // 属性編集
     document.getElementById('btn-f-edit')?.addEventListener('click', () => {
       if (this.app.selectedObject) {
         this.openPropertyModal(this.app.selectedObject);
@@ -194,7 +182,6 @@ export class FurnitureEditor {
 
     let extraFields = '';
 
-    // 棚の寸法変更
     if (isShelf) {
       extraFields += `
         <div style="background: #fef3c7; padding: 8px; border-radius: 6px; border: 1px solid #fde68a;">
@@ -261,7 +248,6 @@ export class FurnitureEditor {
         d.shelfWidth = parseFloat(document.getElementById('prop-shelf-w').value) || 1.2;
         d.shelfDepth = parseFloat(document.getElementById('prop-shelf-d').value) || 0.45;
         d.shelfHeight = parseFloat(document.getElementById('prop-shelf-h').value) || 1.8;
-        // メッシュ再生成
         this.app.rebuildFurnitureMesh(obj);
       }
 
