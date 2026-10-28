@@ -112,12 +112,34 @@ class OfficeSimApp {
     this.camera.lookAt(validX, 0.7, validZ);
   }
 
-  checkCollision(x, z) {
-    if (isNaN(x) || isNaN(z)) return null;
+  checkCollision(px, pz) {
+    if (isNaN(px) || isNaN(pz)) return null;
+    const pr = 0.22; // プレイヤーの当たり判定半径
+
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
-      const r = obj.userData.collisionRadius || 0.65;
-      if (Math.hypot(x - obj.position.x, z - obj.position.z) < 0.55) {
+      const d = obj.userData;
+      // 卓上プリンターや内線電話など、机の上に乗るものは通行ブロック判定から除外
+      if (d.type === 'phone' || d.type === 'printer_desk') continue;
+
+      const halfW = (d.boxW || 0.8) / 2;
+      const halfD = (d.boxD || 0.8) / 2;
+
+      // オブジェクトのローカル座標系にプレイヤー座標を変換（回転角を逆回転）
+      const dx = px - obj.position.x;
+      const dz = pz - obj.position.z;
+      const rad = -(obj.rotation.y || 0);
+      const localX = dx * Math.cos(rad) - dz * Math.sin(rad);
+      const localZ = dx * Math.sin(rad) + dz * Math.cos(rad);
+
+      // 直方体（矩形）の縁との最近傍点を算出
+      const closestX = Math.max(-halfW, Math.min(halfW, localX));
+      const closestZ = Math.max(-halfD, Math.min(halfD, localZ));
+
+      // 最近傍点とプレイヤーの距離を判定
+      const distX = localX - closestX;
+      const distZ = localZ - closestZ;
+      if ((distX * distX + distZ * distZ) < (pr * pr)) {
         return obj;
       }
     }
@@ -1085,6 +1107,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
