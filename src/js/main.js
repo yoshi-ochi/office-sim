@@ -157,8 +157,9 @@ class OfficeSimApp {
     return null;
   }
 
-  async loadFloor(floorId) {
-    this.showLoading();
+  // silent = true の時はグローバルローディングUIを出さない
+  async loadFloor(floorId, silent = false) {
+    if (!silent) this.showLoading();
     try {
       this.floorObjects.forEach(obj => this.scene.remove(obj));
       this.floorObjects = [];
@@ -207,7 +208,7 @@ class OfficeSimApp {
       await this.checkBoardUnread();
       this.refreshNPCs();
     } finally {
-      this.hideLoading();
+      if (!silent) this.hideLoading();
     }
   }
 
@@ -256,7 +257,7 @@ class OfficeSimApp {
     const posts = await this.sheetService.fetchBoardPosts();
     if (posts && posts.length > 0) {
       const lastPost = posts[posts.length - 1];
-      const viewedKey = `board_last_view_${this.currentFloor}`;
+      const viewedKey = 'board_last_view_' + this.currentFloor;
       const lastViewed = localStorage.getItem(viewedKey);
 
       const hasUnread = !lastViewed || lastViewed !== lastPost.id;
@@ -383,6 +384,7 @@ class OfficeSimApp {
     }
   }
 
+  // ★ シネマティック階移動トランジション
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
@@ -390,6 +392,7 @@ class OfficeSimApp {
 
     const iris = document.getElementById('iris-overlay');
 
+    // 1. 移動モーション（エレベーター入室 or 階段昇降）
     if (interactObj && interactObj.userData.isElevator) {
       const doorL = interactObj.userData.doorL;
       const doorR = interactObj.userData.doorR;
@@ -416,6 +419,7 @@ class OfficeSimApp {
       }
     }
 
+    // 2. 丸状暗転（外側から縮小し、キャラ周辺を残してから最後にキャラが暗転）
     if (iris) {
       const p = this.player.position.clone();
       p.y += 0.8;
@@ -425,18 +429,26 @@ class OfficeSimApp {
 
       iris.style.display = 'block';
       iris.style.opacity = '1';
+      iris.style.transition = 'clip-path 0.55s cubic-bezier(0.25, 1, 0.5, 1)';
       iris.style.clipPath = 'circle(150% at ' + screenX + 'px ' + screenY + 'px)';
-      requestAnimationFrame(() => {
-        iris.style.clipPath = 'circle(0% at ' + screenX + 'px ' + screenY + 'px)';
-      });
-      await new Promise(r => setTimeout(r, 800));
+
+      // ステップA: キャラクターの周りまでスポットライト状に円が絞られる
+      await new Promise(r => setTimeout(r, 30));
+      iris.style.clipPath = 'circle(48px at ' + screenX + 'px ' + screenY + 'px)';
+      await new Promise(r => setTimeout(r, 580));
+
+      // ステップB: 最後にキャラクター自身がキュッと暗転（0px）して完全な暗転へ
+      iris.style.transition = 'clip-path 0.28s cubic-bezier(0.4, 0, 1, 1)';
+      iris.style.clipPath = 'circle(0px at ' + screenX + 'px ' + screenY + 'px)';
+      await new Promise(r => setTimeout(r, 300));
     }
 
+    // 3. 暗転中に裏でロードを実行（ローディング画面は非表示）
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
 
-    await this.loadFloor(targetFloor);
+    await this.loadFloor(targetFloor, true);
 
     if (arrivalType === 'stairs_up') this.player.position.set(12, 0, -14);
     else if (arrivalType === 'stairs_down') this.player.position.set(16, 0, -14);
@@ -446,12 +458,13 @@ class OfficeSimApp {
     this.player.position.y = 0;
     this.updateCamera(this.player.position.x, this.player.position.z);
 
+    // 4. 全体がジワリと明転（フェードアウト）
     if (iris) {
-      iris.style.transition = 'opacity 0.65s ease';
+      iris.style.transition = 'opacity 0.75s ease';
       iris.style.opacity = '0';
-      await new Promise(r => setTimeout(r, 700));
+      await new Promise(r => setTimeout(r, 780));
       iris.style.display = 'none';
-      iris.style.transition = 'clip-path 0.75s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease';
+      iris.style.transition = '';
     }
 
     this.isTransitioning = false;
