@@ -5,6 +5,8 @@ export class FurnitureFactory {
   static create(type, data = {}) {
     const group = new THREE.Group();
     group.name = `furniture_${type}_${Date.now()}`;
+
+    // 型番・消耗品・シフト等の属性設定
     group.userData = {
       type: type,
       gridX: parseFloat(data.x) || 0,
@@ -12,13 +14,22 @@ export class FurnitureFactory {
       role: data.role || (type === 'desk' ? '社員' : (type === 'stairs_up' ? '上り階段' : (type === 'stairs_down' ? '下り階段' : '共用設備'))),
       person: data.person || '未設定',
       department: data.department || '編集局',
-      shift: data.shift || '09:00-17:00',
+      // 出勤時間の3区分分割
+      shiftWeekday: data.shiftWeekday || data.shift || '09:00-17:00',
+      shiftSaturday: data.shiftSaturday || '09:00-15:00',
+      shiftHoliday: data.shiftHoliday || '休み',
+      // 電話・内線番号
+      extensionNumber: data.extensionNumber || (type === 'phone' ? '内線 3214' : ''),
+      // プリンター詳細情報
+      modelNumber: data.modelNumber || (type.includes('printer') ? (type === 'printer_desk' ? 'CANON LBP621C' : 'Fuji Xerox ApeosPort-VII C3373') : ''),
+      tonerType: data.tonerType || (type.includes('printer') ? (type === 'printer_desk' ? 'CRG-054H (K/C/M/Y)' : 'CT203138〜CT203141') : ''),
+      drumType: data.drumType || (type.includes('printer') ? (type === 'printer_desk' ? 'カートリッジ一体型' : 'CT351175 ドラムカートリッジ') : ''),
       isMySeat: !!data.isMySeat,
-      isPrinter: !!data.isPrinter || type === 'printer',
-      isElevator: !!data.isElevator || type === 'elevator',
+      isPrinter: type.includes('printer') || !!data.isPrinter,
+      isElevator: type === 'elevator' || !!data.isElevator,
       isStairsUp: type === 'stairs_up',
       isStairsDown: type === 'stairs_down',
-      collisionRadius: (type === 'partition' || type === 'phone') ? 0.35 : (type.includes('stairs') || type === 'elevator' ? 1.2 : 0.65)
+      collisionRadius: (type === 'partition' || type === 'phone' || type === 'printer_desk') ? 0.3 : (type.includes('stairs') || type === 'elevator' ? 1.2 : 0.65)
     };
 
     let mesh;
@@ -26,18 +37,21 @@ export class FurnitureFactory {
       case 'desk': mesh = this.buildDesk(group.userData.isMySeat); break;
       case 'chair': mesh = this.buildChair(); break;
       case 'partition': mesh = this.buildPartition(); break;
-      case 'printer': mesh = this.buildPrinter(); break;
+      case 'printer_floor': // 床置き複合機
+      case 'printer':
+        mesh = this.buildFloorPrinter(group.userData); break;
+      case 'printer_desk': // 卓上プリンター
+        mesh = this.buildDeskPrinter(group.userData, data.isUnderDesk); break;
       case 'locker': mesh = this.buildLocker(); break;
       case 'phone': mesh = this.buildPhone(); break;
       case 'board': mesh = this.buildBoard(group); break;
       case 'elevator': mesh = this.buildElevator(); break;
-      case 'stairs_up': mesh = this.buildStairsMesh(0x22c55e, 'UP'); break; // 緑（上り）
-      case 'stairs_down': mesh = this.buildStairsMesh(0xf97316, 'DN'); break; // オレンジ（下り）
+      case 'stairs_up': mesh = this.buildStairsMesh(0x22c55e, 'UP'); break;
+      case 'stairs_down': mesh = this.buildStairsMesh(0xf97316, 'DN'); break;
       default: mesh = this.buildBox(); break;
     }
     group.add(mesh);
 
-    // 配布タスク用赤球マーカー
     const redDotGeo = new THREE.SphereGeometry(0.22, 16, 16);
     const redDotMat = new THREE.MeshBasicMaterial({ color: 0xff1744 });
     const redDot = new THREE.Mesh(redDotGeo, redDotMat);
@@ -97,12 +111,28 @@ export class FurnitureFactory {
     mesh.position.y = 0.7; mesh.castShadow = true; return mesh;
   }
 
-  static buildPrinter() {
+  // 床置き大型複合機
+  static buildFloorPrinter(userData) {
     const group = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.95, 0.8), new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.95, 0.8), new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.3 }));
     body.position.y = 0.48; body.castShadow = true; group.add(body);
     const panel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.25), new THREE.MeshStandardMaterial({ color: 0x1976d2 }));
     panel.position.set(0.15, 0.98, 0.2); group.add(panel);
+    return group;
+  }
+
+  // 卓上型小型プリンター（机の上 0.75m または 机の下 0.15m）
+  static buildDeskPrinter(userData, isUnderDesk = false) {
+    const group = new THREE.Group();
+    const h = isUnderDesk ? 0.15 : 0.75;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.24, 0.38), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }));
+    body.position.y = h + 0.12;
+    body.castShadow = true;
+    group.add(body);
+
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.12), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+    tray.position.set(0, h + 0.1, 0.22);
+    group.add(tray);
     return group;
   }
 
@@ -112,8 +142,11 @@ export class FurnitureFactory {
   }
 
   static buildPhone() {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.1, 0.25), new THREE.MeshStandardMaterial({ color: 0x455a64 }));
-    mesh.position.y = 0.75; return mesh;
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.22), new THREE.MeshStandardMaterial({ color: 0x37474f }));
+    mesh.position.y = 0.76;
+    group.add(mesh);
+    return group;
   }
 
   static buildBoard(parentGroup) {
@@ -140,10 +173,11 @@ export class FurnitureFactory {
     return group;
   }
 
-  // 上り階段・下り階段の共通ステップモデル
+  // 階段の幅を150cm（1.5m）にリサイズ
   static buildStairsMesh(signColor, text) {
     const group = new THREE.Group();
-    const steps = 5, stepDepth = 0.35, stepHeight = 0.24, width = 1.6;
+    const steps = 5, stepDepth = 0.35, stepHeight = 0.24;
+    const width = 1.5; // 幅を150cmに設定
     const stairMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
 
     for (let i = 0; i < steps; i++) {
@@ -153,9 +187,9 @@ export class FurnitureFactory {
       stepMesh.castShadow = true; group.add(stepMesh);
     }
 
-    // 手すり
+    // 150cm幅に合わせた手すり（左右 ±0.75m）
     const railMat = new THREE.MeshStandardMaterial({ color: signColor, roughness: 0.3, metalness: 0.5 });
-    [-0.8, 0.8].forEach(x => {
+    [-0.75, 0.75].forEach(x => {
       const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4), railMat);
       p1.position.set(x, 1.2, 0.6); group.add(p1);
       const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4), railMat);
@@ -165,7 +199,6 @@ export class FurnitureFactory {
       bar.position.set(x, 1.28, 0); group.add(bar);
     });
 
-    // 階段頭上の案内サイン（▲UP / ▼DOWN）
     const signGeo = new THREE.BoxGeometry(1.0, 0.35, 0.08);
     const signMat = new THREE.MeshBasicMaterial({ color: signColor });
     const sign = new THREE.Mesh(signGeo, signMat);

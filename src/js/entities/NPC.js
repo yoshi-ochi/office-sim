@@ -2,12 +2,24 @@
 
 export class NPCManager {
   /**
-   * シフト文字列（"09:00-17:00", "15:00-24:00" など）から現在勤務中か判定
+   * 平日・土曜・日祝に分かれたシフト情報から現在在席中かを判定
    */
-  static isWorkingNow(shiftStr) {
-    if (!shiftStr || shiftStr === '常駐' || shiftStr === '24時間') return true;
-    const parts = shiftStr.split('-');
-    if (parts.length !== 2) return true;
+  static isWorkingNow(data) {
+    const now = new Date();
+    const day = now.getDay(); // 0: 日曜, 6: 土曜, 1-5: 平日
+
+    let currentShift = data.shiftWeekday || data.shift || '09:00-17:00';
+    if (day === 6) {
+      currentShift = data.shiftSaturday || '休み';
+    } else if (day === 0) {
+      currentShift = data.shiftHoliday || '休み';
+    }
+
+    if (!currentShift || currentShift === '休み' || currentShift === '休') return false;
+    if (currentShift === '常駐' || currentShift === '24時間') return true;
+
+    const parts = currentShift.split('-');
+    if (parts.length !== 2) return false;
 
     const parseMinutes = str => {
       const [h, m] = str.trim().split(':').map(Number);
@@ -16,25 +28,19 @@ export class NPCManager {
 
     const start = parseMinutes(parts[0]);
     const end = parseMinutes(parts[1]);
-    const now = new Date();
     const current = now.getHours() * 60 + now.getMinutes();
 
     if (start <= end) {
       return current >= start && current < end;
     } else {
-      // 日跨ぎシフト (例: 15:00-24:00, 22:00-06:00)
       return current >= start || current < end;
     }
   }
 
-  /**
-   * 勤務中NPCアバターの生成
-   */
   static createSittingNPC(name, role) {
     const group = new THREE.Group();
     group.name = `npc_${name}`;
 
-    // 頭部
     const headGeo = new THREE.SphereGeometry(0.18, 16, 16);
     const headMat = new THREE.MeshStandardMaterial({ color: 0xffcc80, roughness: 0.5 });
     const head = new THREE.Mesh(headGeo, headMat);
@@ -42,7 +48,6 @@ export class NPCManager {
     head.castShadow = true;
     group.add(head);
 
-    // 胴体 (スーツ)
     const bodyGeo = new THREE.BoxGeometry(0.36, 0.45, 0.22);
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
@@ -50,11 +55,10 @@ export class NPCManager {
     body.castShadow = true;
     group.add(body);
 
-    // ネームバッジ (頭上に浮遊)
     const canvas = document.createElement('canvas');
     canvas.width = 128; canvas.height = 32;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
     ctx.roundRect(0, 0, 128, 32, 8);
     ctx.fill();
     ctx.fillStyle = '#ffffff';

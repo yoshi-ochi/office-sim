@@ -77,7 +77,6 @@ class OfficeSimApp {
     this.animate();
   }
 
-  // カメラ座標の NaN 汚染を厳格に遮断
   updateCamera(targetX, targetZ) {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
@@ -93,7 +92,7 @@ class OfficeSimApp {
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
       const r = obj.userData.collisionRadius || 0.65;
-      if (Math.hypot(x - obj.position.x, z - obj.position.z) < (CONFIG.PLAYER_RADIUS + r)) {
+      if (Math.hypot(x - obj.position.x, z - obj.position.z) < ((CONFIG.PLAYER_RADIUS || 0.35) + r)) {
         return obj;
       }
     }
@@ -117,15 +116,16 @@ class OfficeSimApp {
     let layout = await this.sheetService.fetchFloorLayout(floorId);
     if (!layout || layout.length === 0) {
       layout = [
-        { type: 'desk', x: -4, z: -4, rotation: 0, role: '自席', person: '自分', isMySeat: true, shift: '09:00-18:00' },
+        { type: 'desk', x: -4, z: -4, rotation: 0, role: '自席', person: '自分', isMySeat: true, shiftWeekday: '09:00-18:00', extensionNumber: '3201' },
         { type: 'chair', x: -4, z: -3.2, rotation: 0 },
-        { type: 'phone', x: -4.5, z: -4, rotation: 0, role: '内線電話' },
+        { type: 'phone', x: -4.5, z: -4, rotation: 0, role: '内線電話', extensionNumber: '3201' },
+        { type: 'printer_desk', x: -4, z: -4, rotation: 0, role: '自席卓上プリンター', modelNumber: 'CANON LBP621C', tonerType: 'CRG-054H', drumType: '一体型' },
         { type: 'board', x: -3.2, z: -4.5, rotation: 0, role: '業務連絡掲示板' },
-        { type: 'desk', x: 2, z: -4, rotation: 0, role: '課長', person: '佐藤 課長', distNeeded: 'dist_01', shift: '09:00-17:00' },
+        { type: 'desk', x: 2, z: -4, rotation: 0, role: '課長', person: '佐藤 課長', distNeeded: 'dist_01', shiftWeekday: '09:00-17:00', extensionNumber: '3202' },
         { type: 'chair', x: 2, z: -3.2, rotation: 0 },
-        { type: 'desk', x: 6, z: -4, rotation: 0, role: 'リーダー', person: '鈴木 主任', distNeeded: 'dist_04', shift: '15:00-24:00' },
+        { type: 'desk', x: 6, z: -4, rotation: 0, role: 'リーダー', person: '鈴木 主任', distNeeded: 'dist_04', shiftWeekday: '15:00-24:00', shiftSaturday: '13:00-21:00', extensionNumber: '3203' },
         { type: 'chair', x: 6, z: -3.2, rotation: 0 },
-        { type: 'printer', x: 10, z: 2, rotation: 0, role: 'フロア複合機', isPrinter: true }
+        { type: 'printer_floor', x: 10, z: 2, rotation: 0, role: 'フロア複合機', modelNumber: 'ApeosPort-VII C3373', tonerType: 'CT203138', drumType: 'CT351175' }
       ];
     }
 
@@ -178,7 +178,7 @@ class OfficeSimApp {
     this.clearNPCs();
     this.floorObjects.forEach(obj => {
       if (obj.userData.type === 'desk' && !obj.userData.isMySeat && obj.userData.person !== '未設定') {
-        if (NPCManager.isWorkingNow(obj.userData.shift)) {
+        if (NPCManager.isWorkingNow(obj.userData)) {
           const npc = NPCManager.createSittingNPC(obj.userData.person, obj.userData.role);
           npc.position.set(obj.position.x, 0, obj.position.z + 0.7);
           this.scene.add(npc);
@@ -188,13 +188,28 @@ class OfficeSimApp {
     });
   }
 
+  // 卓上プリンターの机上／机下自動判定付きスポーン
   spawnFurnitureInFrontOfPlayer(type) {
     const fwd = this.player.getForwardVector();
-    const snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
-    const snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
+    let snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
+    let snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
+    let isUnderDesk = false;
 
-    // ワールドマス目に正対（0度）で生成
-    const newObj = FurnitureFactory.create(type, { x: snapX, z: snapZ, rotation: 0 });
+    // 卓上プリンターの場合: 周囲1.2m以内の机を検索
+    if (type === 'printer_desk') {
+      const nearbyDesk = this.floorObjects.find(o => o.userData.type === 'desk' && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 1.2);
+      if (nearbyDesk) {
+        snapX = nearbyDesk.position.x;
+        snapZ = nearbyDesk.position.z;
+        // すでにこの机上にプリンターが存在するか判定
+        const existingPrinter = this.floorObjects.find(o => o.userData.type === 'printer_desk' && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 0.3);
+        if (existingPrinter) {
+          isUnderDesk = true; // 2台目は机の下に配置
+        }
+      }
+    }
+
+    const newObj = FurnitureFactory.create(type, { x: snapX, z: snapZ, rotation: 0, isUnderDesk });
     this.scene.add(newObj);
     this.floorObjects.push(newObj);
     this.selectFurniture(newObj);
@@ -218,7 +233,13 @@ class OfficeSimApp {
       role: obj.userData.role,
       person: obj.userData.person,
       department: obj.userData.department || '',
-      shift: obj.userData.shift || '09:00-17:00',
+      shiftWeekday: obj.userData.shiftWeekday || '',
+      shiftSaturday: obj.userData.shiftSaturday || '',
+      shiftHoliday: obj.userData.shiftHoliday || '',
+      extensionNumber: obj.userData.extensionNumber || '',
+      modelNumber: obj.userData.modelNumber || '',
+      tonerType: obj.userData.tonerType || '',
+      drumType: obj.userData.drumType || '',
       distNeeded: obj.userData.distNeeded || ''
     }));
     const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
@@ -311,7 +332,6 @@ class OfficeSimApp {
       palette.classList.remove('active');
     });
 
-    // ドラッグ移動
     const dom = this.renderer.domElement;
     dom.addEventListener('pointerdown', e => {
       if (!this.isEditMode) return;
@@ -351,11 +371,9 @@ class OfficeSimApp {
       this.editor.showSnapGuide(0, 0, false);
     });
 
-    // キーボード移動
     window.addEventListener('keydown', e => { if (e.key) this.keys[e.key.toLowerCase()] = true; });
     window.addEventListener('keyup', e => { if (e.key) this.keys[e.key.toLowerCase()] = false; });
 
-    // ジョイスティック操作（ゼロ除算・NaN対策）
     const zone = document.getElementById('joystick-zone');
     const knob = document.getElementById('joystick-knob');
     let active = false, startX = 0, startY = 0;
@@ -406,6 +424,7 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
+  // --- オブジェクト詳細（周辺の電話・プリンター情報を結合して表示） ---
   handleTriggerObject(obj) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
@@ -413,7 +432,6 @@ class OfficeSimApp {
     }
     const data = obj.userData;
 
-    // 上り階段: ポップアップなしで1つ上へ即時移動
     if (data.isStairsUp) {
       if (this.currentFloor < CONFIG.FLOORS.length) {
         this.changeFloor(this.currentFloor + 1, 'stairs_up');
@@ -423,7 +441,6 @@ class OfficeSimApp {
       return;
     }
 
-    // 下り階段: ポップアップなしで1つ下へ即時移動
     if (data.isStairsDown) {
       if (this.currentFloor > 1) {
         this.changeFloor(this.currentFloor - 1, 'stairs_down');
@@ -433,18 +450,84 @@ class OfficeSimApp {
       return;
     }
 
-    if (data.isElevator) this.triggerElevator();
-    else if (data.isPrinter) this.triggerPrinter();
-    else if (data.type === 'phone') this.triggerPhone();
-    else if (data.type === 'board') this.triggerBoard(obj);
-    else {
-      this.showModal(`${data.role} のデスク`, `
-        <strong>氏名:</strong> ${data.person}<br>
-        <strong>部署:</strong> ${data.department || '一般'}<br>
-        <strong>勤務シフト:</strong> ${data.shift || '09:00-17:00'}<br>
-        <strong>必要配布物:</strong> ${data.distNeeded ? '【要配布】' + data.distNeeded : '特になし'}
-      `);
+    if (data.isElevator) {
+      this.triggerElevator();
+      return;
     }
+    if (data.type === 'board') {
+      this.triggerBoard(obj);
+      return;
+    }
+
+    // デスク接触時：周囲（1.2m以内）の電話やプリンター情報を探索・結合
+    if (data.type === 'desk') {
+      const px = obj.position.x;
+      const pz = obj.position.z;
+
+      // 周辺の内線電話
+      const nearbyPhones = this.floorObjects.filter(o => o.userData.type === 'phone' && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
+      const extStr = nearbyPhones.map(p => p.userData.extensionNumber).filter(Boolean).join(', ') || data.extensionNumber || 'なし';
+
+      // 周辺のプリンター（卓上または床置き）
+      const nearbyPrinters = this.floorObjects.filter(o => o.userData.type.includes('printer') && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
+
+      let printerInfoHtml = '';
+      if (nearbyPrinters.length > 0) {
+        printerInfoHtml += '<div style="margin-top: 8px; padding: 6px; background: #fdf4ff; border-radius: 6px; border: 1px solid #f0abfc;">';
+        nearbyPrinters.forEach(p => {
+          const pd = p.userData;
+          printerInfoHtml += `
+            <div style="font-size: 11px; margin-bottom: 4px;">
+              <strong style="color: #9333ea;">🖨️ ${pd.role} (${pd.type === 'printer_desk' ? '卓上型' : '床置複合機'})</strong><br>
+              型番: <strong>${pd.modelNumber || '未登録'}</strong><br>
+              対応トナー: ${pd.tonerType || '未登録'} | ドラム: ${pd.drumType || '未登録'}
+            </div>
+          `;
+        });
+        printerInfoHtml += '</div>';
+      }
+
+      const today = new Date().getDay();
+      let shiftToday = data.shiftWeekday || '09:00-17:00';
+      if (today === 6) shiftToday = data.shiftSaturday || '09:00-15:00';
+      if (today === 0) shiftToday = data.shiftHoliday || '休み';
+
+      const bodyHtml = `
+        <div style="font-size: 13px; line-height: 1.5;">
+          <strong>担当者:</strong> ${data.person} (${data.department || '編集局'})<br>
+          <strong>本日の出勤時間:</strong> <span style="color: #0284c7; font-weight: bold;">${shiftToday}</span><br>
+          <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">
+            (平日: ${data.shiftWeekday || '-'} / 土曜: ${data.shiftSaturday || '-'} / 日祝: ${data.shiftHoliday || '-'})
+          </div>
+          <strong>内線番号:</strong> <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${extStr}</span><br>
+          ${printerInfoHtml}
+          <strong>必要配布物:</strong> ${data.distNeeded ? '【要配布】' + data.distNeeded : '特になし'}
+        </div>
+      `;
+      this.showModal(`👤 ${data.role} のデスク詳細`, bodyHtml);
+      return;
+    }
+
+    // 単体プリンター接触時
+    if (data.type.includes('printer')) {
+      const bodyHtml = `
+        <div style="font-size: 13px; line-height: 1.6;">
+          <strong>名称:</strong> ${data.role}<br>
+          <strong>型番:</strong> <span style="color: #1e293b; font-weight: bold;">${data.modelNumber || '未登録'}</span><br>
+          <strong>適合トナー:</strong> <span style="color: #0284c7;">${data.tonerType || '未登録'}</span><br>
+          <strong>ドラム形式:</strong> ${data.drumType || '未登録'}
+        </div>
+      `;
+      this.showModal(`🖨️ プリンター・複合機機器情報`, bodyHtml);
+      return;
+    }
+
+    if (data.type === 'phone') {
+      this.showModal(`📞 電話設備`, `<strong>内線番号:</strong> ${data.extensionNumber || '内線 3200'}`);
+      return;
+    }
+
+    this.showModal(`${data.role}`, `<strong>状況:</strong> 通常稼働中`);
   }
 
   async triggerBoard(boardObj) {
@@ -661,28 +744,6 @@ class OfficeSimApp {
     });
   }
 
-  triggerPrinter() {
-    this.showModal("複合機トラブル: 用紙詰まり", `
-      <p>カセット1で用紙詰まりが発生しています。カバーを開けて用紙を取り除いてください。</p>
-      <div style="text-align: right; margin-top: 10px;"><button id="btn-fix-p" class="btn-dialog btn-primary">用紙を除去</button></div>
-    `);
-    document.getElementById('btn-fix-p')?.addEventListener('click', () => {
-      this.closeModal();
-      alert("🎉 複合機の紙詰まりが解消しました！");
-    });
-  }
-
-  triggerPhone() {
-    this.showModal("📞 内線電話", `
-      <p>1F 総合受付より: 「バイク便で書類が到着しています。」</p>
-      <div style="text-align: right; margin-top: 10px;"><button id="btn-phone-ok" class="btn-dialog btn-primary">了解</button></div>
-    `);
-    document.getElementById('btn-phone-ok')?.addEventListener('click', () => {
-      this.closeModal();
-      alert("タスクを受領しました。1Fへ向かってください。");
-    });
-  }
-
   changeFloor(targetFloor, arrivalType) {
     this.closeModal();
     this.currentFloor = targetFloor;
@@ -725,11 +786,9 @@ class OfficeSimApp {
 
     const hit = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
 
-    // カメラ位置の更新（常に正当な数値を保証）
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    // 1.2秒判定
     if (!this.isModalActive && hit) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
