@@ -1042,23 +1042,35 @@ class OfficeSimApp {
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    if (!this.isModalActive && hit) {
+    // --- 修正前 ---
+    // if (!this.isModalActive && hit) {
+    //   if (this.collidingObject === hit) {
+    //     this.collisionTimer += delta;
+    // ...
+
+    // --- 修正後 ---
+    // スティック入力またはキー入力があるか判定 (移動操作中か)
+    const isMovingInput = Math.hypot(vx, vy) > 0.05;
+
+    // 「移動操作中」かつ「障害物に押し当てている」場合のみタイマーを加算
+    if (!this.isModalActive && hit && isMovingInput) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
-        if (this.collisionTimer >= CONFIG.COLLISION_TRIGGER_TIME) {
+        // 1.0秒以上の継続押し当てでポップアップを起動
+        if (this.collisionTimer >= 1.0) {
           this.handleTriggerObject(hit);
           this.collisionTimer = 0;
+          this.collidingObject = null;
         }
       } else {
         this.collidingObject = hit;
         this.collisionTimer = 0;
       }
-    } else if (!hit) {
+    } else {
+      // スティック操作をしていない、または接触していない場合は即リセット
       this.collidingObject = null;
       this.collisionTimer = 0;
     }
-
-    this.renderer.render(this.scene, this.camera);
   }
 }
 
