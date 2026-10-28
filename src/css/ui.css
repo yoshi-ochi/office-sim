@@ -125,9 +125,49 @@
   pointer-events: auto;
 }
 
+/* 右下アクションボタン群 */
+.action-controls {
+  position: absolute;
+  bottom: 28px;
+  right: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.round-action-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.round-action-btn:active {
+  transform: scale(0.92);
+}
+
+.btn-talk {
+  background: linear-gradient(135deg, #ff7043, #f4511e);
+}
+
+.btn-rotate {
+  background: linear-gradient(135deg, #ab47bc, #8e24aa);
+  display: none;
+}
+
 /* --- 家具配置・エディタ関連UI --- */
 
-/* 1. カルーセル再展開用フローティング小アイコン (右上ヘッダーの少し下) */
+/* 1. カルーセル再展開用フローティング小アイコン (右上ヘッダー直下) */
 #btn-open-palette-fab {
   display: none;
   position: absolute;
@@ -214,6 +254,21 @@
   background: rgba(220, 38, 38, 1);
 }
 
+/* --- シンプル・ローディングスピナー --- */
+.circle-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spinnerRotate 0.8s linear infinite;
+}
+
+@keyframes spinnerRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* ポップアップモーダル */
 .modal-overlay {
   position: absolute;
@@ -221,7 +276,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   display: none;
   align-items: center;
   justify-content: center;

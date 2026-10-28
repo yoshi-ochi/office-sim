@@ -42,11 +42,9 @@ class OfficeSimApp {
     this.mouse = new THREE.Vector2();
   }
 
-  showLoading(text = "読み込み中...") {
+  showLoading() {
     const el = document.getElementById('global-loading-overlay');
-    const txt = document.getElementById('loading-status-text');
     if (!el) return;
-    if (txt) txt.innerText = text;
     el.style.display = 'flex';
     requestAnimationFrame(() => { el.style.opacity = '1'; });
   }
@@ -83,13 +81,13 @@ class OfficeSimApp {
     this.scene.add(dirLight);
 
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
-    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xe8e6df, roughness: 0.9 });
+    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d6, roughness: 0.9 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
     this.floorPlane.rotation.x = -Math.PI / 2;
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
-    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xd5d2c7, 0xdfdcd2);
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xb0b4bc, 0xc4c8d0);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
@@ -153,7 +151,7 @@ class OfficeSimApp {
   }
 
   async loadFloor(floorId) {
-    this.showLoading(`${floorId}F のオフィスレイアウトを展開中...`);
+    this.showLoading();
     try {
       this.floorObjects.forEach(obj => this.scene.remove(obj));
       this.floorObjects = [];
@@ -347,7 +345,7 @@ class OfficeSimApp {
   }
 
   async syncCurrentLayoutToSheet() {
-    this.showLoading("フロアレイアウトをスプレッドシートに保存中...");
+    this.showLoading();
     try {
       const items = this.floorObjects.map(obj => ({
         floor: this.currentFloor,
@@ -381,12 +379,37 @@ class OfficeSimApp {
     let currentAuthEmail = "";
     let currentAuthUserData = null;
 
-    // メール認証
+    // 1画面一括ログイン (メール & パスワード)
+    document.getElementById('btn-login-unified')?.addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value.trim();
+      const pass = document.getElementById('login-password').value;
+      if (!email || !pass) return alert("メールアドレスとパスワードの両方を入力してください。");
+
+      this.showLoading();
+      try {
+        // 1回のリクエストでパスワード検証
+        const res = await this.sheetService.verifyPassword(email, pass);
+        if (res && res.status === 'success') {
+          this.currentUser = res.user;
+          document.getElementById('user-badge').innerText = 👤  ();
+          document.getElementById('login-overlay').style.display = 'none';
+          await this.loadFloor(this.currentFloor);
+        } else {
+          alert(res ? res.message : "メールアドレスまたはパスワードが正しくありません。");
+        }
+      } catch (err) {
+        alert("通信エラーが発生しました。");
+      } finally {
+        this.hideLoading();
+      }
+    });
+
+    // 旧メール認証
     document.getElementById('btn-check-email')?.addEventListener('click', async () => {
       const email = document.getElementById('login-email').value.trim();
       if (!email) return alert("メールアドレスを入力してください。");
 
-      this.showLoading("メールアドレスを照合中...");
+      this.showLoading();
       try {
         const res = await this.sheetService.checkEmail(email);
         if (res && res.status === 'success') {
@@ -414,7 +437,7 @@ class OfficeSimApp {
       const pass = document.getElementById('login-password').value;
       if (!pass) return alert("パスワードを入力してください。");
 
-      this.showLoading("パスワード認証中...");
+      this.showLoading();
       try {
         const res = await this.sheetService.verifyPassword(currentAuthEmail, pass);
         if (res && res.status === 'success') {
@@ -436,7 +459,7 @@ class OfficeSimApp {
       const pass = document.getElementById('setup-password').value;
       if (!pass) return alert("パスワードを入力してください。");
 
-      this.showLoading("初期パスワードを登録中...");
+      this.showLoading();
       try {
         const res = await this.sheetService.setPassword(currentAuthEmail, pass);
         if (res && res.status === 'success') {
@@ -824,7 +847,7 @@ class OfficeSimApp {
 
   async openHistoryModal() {
     if (!this.currentUser) return;
-    this.showLoading("受講履歴ログを取得中...");
+    this.showLoading();
     try {
       const logs = await this.sheetService.fetchTrainingLogs();
       let html = '<div style="max-height: 280px; overflow-y: auto;">';
@@ -868,7 +891,7 @@ class OfficeSimApp {
   }
 
   async triggerBoard(boardObj) {
-    this.showLoading("業務連絡掲示板を同期中...");
+    this.showLoading();
     try {
       const posts = await this.sheetService.fetchBoardPosts();
       if (posts.length > 0) {
@@ -910,7 +933,7 @@ class OfficeSimApp {
         const msg = document.getElementById('b-msg').value.trim();
         if (!msg) return;
 
-        this.showLoading("掲示板に投稿中...");
+        this.showLoading();
         try {
           const now = new Date();
           const dateStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -933,7 +956,7 @@ class OfficeSimApp {
   }
 
   async openDictionaryModal() {
-    this.showLoading("社内用語辞書を読み込み中...");
+    this.showLoading();
     try {
       const terms = await this.sheetService.fetchDictionary();
       let listHtml = '<div style="max-height: 220px; overflow-y: auto; margin-bottom: 12px;">';
@@ -969,7 +992,7 @@ class OfficeSimApp {
         const content = document.getElementById('dict-content').value.trim();
         if (!term || !content) return alert("用語名と説明を入力してください。");
 
-        this.showLoading("新しい用語を登録中...");
+        this.showLoading();
         try {
           await this.sheetService.saveDictionaryTerm({ term, category: cat, content });
           alert(`用語「${term}」を追加しました！`);
@@ -984,7 +1007,7 @@ class OfficeSimApp {
   }
 
   async openWorkflowsTableModal() {
-    this.showLoading("業務フロー情報を取得中...");
+    this.showLoading();
     try {
       let rows = await this.sheetService.fetchWorkflows();
       if (!rows || rows.length === 0) {
@@ -1079,7 +1102,7 @@ class OfficeSimApp {
       });
 
       document.getElementById('btn-wf-save-all')?.addEventListener('click', async () => {
-        this.showLoading("業務情報マニュアルを保存中...");
+        this.showLoading();
         try {
           await this.sheetService.saveWorkflows(rows);
           alert("業務情報一覧をスプレッドシート（Workflows）に保存しました！");
@@ -1189,5 +1212,6 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
