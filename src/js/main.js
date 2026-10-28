@@ -21,9 +21,10 @@ class OfficeSimApp {
     this.isDragging = false;
     this.boxHelper = null;
 
-    this.cameraAngleH = Math.PI / 4;
-    this.cameraAngleV = 0.85;
-    this.cameraRadius = 32.0;
+    // --- カメラ軌道・自由回転パラメータ ---
+    this.cameraAngle = Math.PI / 4; // 水平方位角 (初期45度)
+    this.cameraElevation = 26;      // 高さ
+    this.cameraDistance = 24;       // 水平距離
     this.isRotatingCamera = false;
     this.pointerStartPos = { x: 0, y: 0 };
     this.hasMovedPointer = false;
@@ -50,7 +51,8 @@ class OfficeSimApp {
 
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
     const d = CONFIG.CAMERA_VIEW_SIZE || 15;
-    this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 2000);
+    // クリップ面を広く設定し黒画面落ちを防止
+    this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, -100, 1000);
     this.camera.zoom = 1.0;
     this.updateCamera(this.mySeatPos.x, this.mySeatPos.z);
 
@@ -60,12 +62,13 @@ class OfficeSimApp {
     this.renderer.shadowMap.enabled = true;
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.85));
     const dirLight = new THREE.DirectionalLight(0xfff6e5, 0.65);
     dirLight.position.set(45, 60, 45);
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
+    // 80m四方フロア
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -73,10 +76,12 @@ class OfficeSimApp {
     this.floorPlane.receiveShadow = true;
     this.scene.add(this.floorPlane);
 
+    // 50cmサブグリッド
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
+    // 5mメインガイドライン
     this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
@@ -94,13 +99,14 @@ class OfficeSimApp {
     this.animate();
   }
 
+  // カメラをプレイヤー中心に滑らかかつ確実に追従・回転
   updateCamera(targetX, targetZ) {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
 
-    const cx = validX + this.cameraRadius * Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV);
-    const cy = this.cameraRadius * Math.sin(this.cameraAngleV);
-    const cz = validZ + this.cameraRadius * Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV);
+    const cx = validX + this.cameraDistance * Math.sin(this.cameraAngle);
+    const cy = this.cameraElevation;
+    const cz = validZ + this.cameraDistance * Math.cos(this.cameraAngle);
 
     this.camera.position.set(cx, cy, cz);
     this.camera.lookAt(validX, 0.7, validZ);
@@ -487,15 +493,17 @@ class OfficeSimApp {
       }
 
       if (this.isRotatingCamera) {
-        const rotSpeed = 0.006;
-        this.cameraAngleH -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
-        this.cameraAngleV += (e.clientY - this.pointerStartPos.y) * rotSpeed;
-        this.cameraAngleV = Math.max(0.2, Math.min(Math.PI / 2.1, this.cameraAngleV));
+        // 水平方位角の回転
+        const rotSpeed = 0.005;
+        this.cameraAngle -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
+        // 上下仰角の調整（一定範囲内に制限）
+        this.cameraElevation = Math.max(16, Math.min(42, this.cameraElevation + (e.clientY - this.pointerStartPos.y) * 0.05));
         this.pointerStartPos = { x: e.clientX, y: e.clientY };
       }
     });
 
     window.addEventListener('pointerup', () => {
+      // クリック判定
       if (!this.hasMovedPointer && !this.isEditMode) {
         this.mouse.x = (this.pointerStartPos.x / window.innerWidth) * 2 - 1;
         this.mouse.y = -(this.pointerStartPos.y / window.innerHeight) * 2 + 1;
@@ -1039,24 +1047,16 @@ class OfficeSimApp {
 
     const hit = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
 
+    // カメラ位置を安全に追従更新
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    // --- 修正前 ---
-    // if (!this.isModalActive && hit) {
-    //   if (this.collidingObject === hit) {
-    //     this.collisionTimer += delta;
-    // ...
-
-    // --- 修正後 ---
-    // スティック入力またはキー入力があるか判定 (移動操作中か)
+    // スティック・キー操作中のみ衝突タイマー（1.0秒押し当て）を加算
     const isMovingInput = Math.hypot(vx, vy) > 0.05;
 
-    // 「移動操作中」かつ「障害物に押し当てている」場合のみタイマーを加算
     if (!this.isModalActive && hit && isMovingInput) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
-        // 1.0秒以上の継続押し当てでポップアップを起動
         if (this.collisionTimer >= 1.0) {
           this.handleTriggerObject(hit);
           this.collisionTimer = 0;
@@ -1067,10 +1067,11 @@ class OfficeSimApp {
         this.collisionTimer = 0;
       }
     } else {
-      // スティック操作をしていない、または接触していない場合は即リセット
       this.collidingObject = null;
       this.collisionTimer = 0;
     }
+
+    this.renderer.render(this.scene, this.camera);
   }
 }
 
