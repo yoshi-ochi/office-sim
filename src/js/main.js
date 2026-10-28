@@ -53,7 +53,7 @@ class OfficeSimApp {
     const el = document.getElementById('global-loading-overlay');
     if (!el) return;
     el.style.opacity = '0';
-    setTimeout(() => { el.style.display = 'none'; }, 250);
+    setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
   init() {
@@ -80,6 +80,7 @@ class OfficeSimApp {
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
+    // 暗めのオフィスグレーフロア
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d6, roughness: 0.9 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -103,7 +104,6 @@ class OfficeSimApp {
     this.chatManager = new ChatManager(this.sheetService, () => this.currentUser, () => this.currentFloor);
     this.editor = new FurnitureEditor(this);
 
-    // ★ 認証前にフロアを先行ロードしない（ログイン後に初めてロード）
     this.setupEvents();
     this.animate();
   }
@@ -368,17 +368,13 @@ class OfficeSimApp {
         shelfHeight: obj.userData.shelfHeight || '',
         distNeeded: obj.userData.distNeeded || ''
       }));
-      const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
-      
+      await this.sheetService.saveFloorLayout(this.currentFloor, items);
     } finally {
       this.hideLoading();
     }
   }
 
   setupEvents() {
-    let currentAuthEmail = "";
-    let currentAuthUserData = null;
-
     // 1画面一括ログイン (メール & パスワード)
     document.getElementById('btn-login-unified')?.addEventListener('click', async () => {
       const email = document.getElementById('login-email').value.trim();
@@ -387,11 +383,10 @@ class OfficeSimApp {
 
       this.showLoading();
       try {
-        // 1回のリクエストでパスワード検証
         const res = await this.sheetService.verifyPassword(email, pass);
         if (res && res.status === 'success') {
           this.currentUser = res.user;
-          document.getElementById('user-badge').innerText = 👤  ();
+          document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
           document.getElementById('login-overlay').style.display = 'none';
           await this.loadFloor(this.currentFloor);
         } else {
@@ -399,75 +394,6 @@ class OfficeSimApp {
         }
       } catch (err) {
         alert("通信エラーが発生しました。");
-      } finally {
-        this.hideLoading();
-      }
-    });
-
-    // 旧メール認証
-    document.getElementById('btn-check-email')?.addEventListener('click', async () => {
-      const email = document.getElementById('login-email').value.trim();
-      if (!email) return alert("メールアドレスを入力してください。");
-
-      this.showLoading();
-      try {
-        const res = await this.sheetService.checkEmail(email);
-        if (res && res.status === 'success') {
-          currentAuthEmail = email;
-          currentAuthUserData = res.user;
-          document.getElementById('step-email-area').style.display = 'none';
-
-          if (res.hasPassword) {
-            document.getElementById('password-form-area').style.display = 'block';
-            document.getElementById('login-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
-          } else {
-            document.getElementById('setup-form-area').style.display = 'block';
-            document.getElementById('setup-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
-          }
-        } else {
-          alert(res ? res.message : "アクセスが拒否されました。");
-        }
-      } finally {
-        this.hideLoading();
-      }
-    });
-
-    // パスワードログイン
-    document.getElementById('btn-login-exec')?.addEventListener('click', async () => {
-      const pass = document.getElementById('login-password').value;
-      if (!pass) return alert("パスワードを入力してください。");
-
-      this.showLoading();
-      try {
-        const res = await this.sheetService.verifyPassword(currentAuthEmail, pass);
-        if (res && res.status === 'success') {
-          this.currentUser = res.user;
-          document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
-          document.getElementById('login-overlay').style.display = 'none';
-          // ★ ログイン成功時に初めてフロアをロード
-          this.loadFloor(this.currentFloor);
-        } else {
-          alert(res ? res.message : "パスワードが正しくありません。");
-        }
-      } finally {
-        this.hideLoading();
-      }
-    });
-
-    // 初回パスワード登録
-    document.getElementById('btn-setup-exec')?.addEventListener('click', async () => {
-      const pass = document.getElementById('setup-password').value;
-      if (!pass) return alert("パスワードを入力してください。");
-
-      this.showLoading();
-      try {
-        const res = await this.sheetService.setPassword(currentAuthEmail, pass);
-        if (res && res.status === 'success') {
-          this.currentUser = currentAuthUserData;
-          document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
-          document.getElementById('login-overlay').style.display = 'none';
-          this.loadFloor(this.currentFloor);
-        }
       } finally {
         this.hideLoading();
       }
@@ -1212,6 +1138,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
-
-
