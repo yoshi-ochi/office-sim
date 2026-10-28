@@ -21,10 +21,9 @@ class OfficeSimApp {
     this.isDragging = false;
     this.boxHelper = null;
 
-    // --- カメラ軌道・自由回転パラメータ ---
-    this.cameraAngle = Math.PI / 4; // 水平方位角 (初期45度)
-    this.cameraElevation = 26;      // 高さ
-    this.cameraDistance = 24;       // 水平距離
+    this.cameraAngle = Math.PI / 4;
+    this.cameraElevation = 26;
+    this.cameraDistance = 24;
     this.isRotatingCamera = false;
     this.pointerStartPos = { x: 0, y: 0 };
     this.hasMovedPointer = false;
@@ -43,6 +42,22 @@ class OfficeSimApp {
     this.mouse = new THREE.Vector2();
   }
 
+  showLoading(text = "読み込み中...") {
+    const el = document.getElementById('global-loading-overlay');
+    const txt = document.getElementById('loading-status-text');
+    if (!el) return;
+    if (txt) txt.innerText = text;
+    el.style.display = 'flex';
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+  }
+
+  hideLoading() {
+    const el = document.getElementById('global-loading-overlay');
+    if (!el) return;
+    el.style.opacity = '0';
+    setTimeout(() => { el.style.display = 'none'; }, 250);
+  }
+
   init() {
     const container = document.getElementById('canvas-container');
 
@@ -51,7 +66,6 @@ class OfficeSimApp {
 
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
     const d = CONFIG.CAMERA_VIEW_SIZE || 15;
-    // クリップ面を広く設定し黒画面落ちを防止
     this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, -100, 1000);
     this.camera.zoom = 1.0;
     this.updateCamera(this.mySeatPos.x, this.mySeatPos.z);
@@ -68,7 +82,6 @@ class OfficeSimApp {
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    // 80m四方フロア
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -76,12 +89,10 @@ class OfficeSimApp {
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
-    // 50cmサブグリッド
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
-    // 5mメインガイドライン
     this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
@@ -94,12 +105,11 @@ class OfficeSimApp {
     this.chatManager = new ChatManager(this.sheetService, () => this.currentUser, () => this.currentFloor);
     this.editor = new FurnitureEditor(this);
 
-    this.loadFloor(this.currentFloor);
+    // ★ 認証前にフロアを先行ロードしない（ログイン後に初めてロード）
     this.setupEvents();
     this.animate();
   }
 
-  // カメラをプレイヤー中心に滑らかかつ確実に追従・回転
   updateCamera(targetX, targetZ) {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
@@ -114,29 +124,25 @@ class OfficeSimApp {
 
   checkCollision(px, pz) {
     if (isNaN(px) || isNaN(pz)) return null;
-    const pr = 0.22; // プレイヤーの当たり判定半径
+    const pr = 0.22;
 
     for (const obj of this.floorObjects) {
       if (this.isEditMode && this.isDragging && this.selectedObject === obj) continue;
       const d = obj.userData;
-      // 卓上プリンターや内線電話など、机の上に乗るものは通行ブロック判定から除外
       if (d.type === 'phone' || d.type === 'printer_desk') continue;
 
       const halfW = (d.boxW || 0.8) / 2;
       const halfD = (d.boxD || 0.8) / 2;
 
-      // オブジェクトのローカル座標系にプレイヤー座標を変換（回転角を逆回転）
       const dx = px - obj.position.x;
       const dz = pz - obj.position.z;
       const rad = -(obj.rotation.y || 0);
       const localX = dx * Math.cos(rad) - dz * Math.sin(rad);
       const localZ = dx * Math.sin(rad) + dz * Math.cos(rad);
 
-      // 直方体（矩形）の縁との最近傍点を算出
       const closestX = Math.max(-halfW, Math.min(halfW, localX));
       const closestZ = Math.max(-halfD, Math.min(halfD, localZ));
 
-      // 最近傍点とプレイヤーの距離を判定
       const distX = localX - closestX;
       const distZ = localZ - closestZ;
       if ((distX * distX + distZ * distZ) < (pr * pr)) {
@@ -147,50 +153,55 @@ class OfficeSimApp {
   }
 
   async loadFloor(floorId) {
-    this.floorObjects.forEach(obj => this.scene.remove(obj));
-    this.floorObjects = [];
-    this.clearNPCs();
+    this.showLoading(`${floorId}F のオフィスレイアウトを展開中...`);
+    try {
+      this.floorObjects.forEach(obj => this.scene.remove(obj));
+      this.floorObjects = [];
+      this.clearNPCs();
 
-    if (this.boxHelper) {
-      this.scene.remove(this.boxHelper);
-      this.boxHelper = null;
-    }
-    this.editor.showActionBar(false);
-
-    const floorInfo = CONFIG.FLOORS.find(f => f.id === floorId);
-    if (floorInfo) this.floorMat.color.setHex(floorInfo.color);
-
-    let layout = await this.sheetService.fetchFloorLayout(floorId);
-    if (!layout || layout.length === 0) {
-      layout = this.getDefaultLayoutForFloor(floorId);
-    }
-
-    layout.forEach(data => {
-      const furniture = FurnitureFactory.create(data.type, data);
-      this.scene.add(furniture);
-      this.floorObjects.push(furniture);
-
-      if (furniture.userData.isMySeat) {
-        this.mySeatFloor = floorId;
-        this.mySeatPos = { x: furniture.position.x, z: furniture.position.z };
+      if (this.boxHelper) {
+        this.scene.remove(this.boxHelper);
+        this.boxHelper = null;
       }
-    });
+      this.editor.showActionBar(false);
 
-    if (!this.floorObjects.some(o => o.userData.isElevator)) {
-      const elv = FurnitureFactory.create('elevator', { x: -14, z: -16, rotation: 0, role: 'エレベーター' });
-      this.scene.add(elv); this.floorObjects.push(elv);
-    }
-    if (!this.floorObjects.some(o => o.userData.isStairsUp)) {
-      const up = FurnitureFactory.create('stairs_up', { x: 12, z: -16, rotation: 0, role: '上り階段' });
-      this.scene.add(up); this.floorObjects.push(up);
-    }
-    if (!this.floorObjects.some(o => o.userData.isStairsDown)) {
-      const dn = FurnitureFactory.create('stairs_down', { x: 16, z: -16, rotation: 0, role: '下り階段' });
-      this.scene.add(dn); this.floorObjects.push(dn);
-    }
+      const floorInfo = CONFIG.FLOORS.find(f => f.id === floorId);
+      if (floorInfo) this.floorMat.color.setHex(floorInfo.color);
 
-    this.checkBoardUnread();
-    this.refreshNPCs();
+      let layout = await this.sheetService.fetchFloorLayout(floorId);
+      if (!layout || layout.length === 0) {
+        layout = this.getDefaultLayoutForFloor(floorId);
+      }
+
+      layout.forEach(data => {
+        const furniture = FurnitureFactory.create(data.type, data);
+        this.scene.add(furniture);
+        this.floorObjects.push(furniture);
+
+        if (furniture.userData.isMySeat) {
+          this.mySeatFloor = floorId;
+          this.mySeatPos = { x: furniture.position.x, z: furniture.position.z };
+        }
+      });
+
+      if (!this.floorObjects.some(o => o.userData.isElevator)) {
+        const elv = FurnitureFactory.create('elevator', { x: -14, z: -16, rotation: 0, role: 'エレベーター' });
+        this.scene.add(elv); this.floorObjects.push(elv);
+      }
+      if (!this.floorObjects.some(o => o.userData.isStairsUp)) {
+        const up = FurnitureFactory.create('stairs_up', { x: 12, z: -16, rotation: 0, role: '上り階段' });
+        this.scene.add(up); this.floorObjects.push(up);
+      }
+      if (!this.floorObjects.some(o => o.userData.isStairsDown)) {
+        const dn = FurnitureFactory.create('stairs_down', { x: 16, z: -16, rotation: 0, role: '下り階段' });
+        this.scene.add(dn); this.floorObjects.push(dn);
+      }
+
+      await this.checkBoardUnread();
+      this.refreshNPCs();
+    } finally {
+      this.hideLoading();
+    }
   }
 
   getDefaultLayoutForFloor(floorId) {
@@ -336,30 +347,35 @@ class OfficeSimApp {
   }
 
   async syncCurrentLayoutToSheet() {
-    const items = this.floorObjects.map(obj => ({
-      floor: this.currentFloor,
-      type: obj.userData.type,
-      x: obj.position.x,
-      z: obj.position.z,
-      rotation: obj.rotation.y,
-      role: obj.userData.role,
-      person: obj.userData.person,
-      department: obj.userData.department || '',
-      shiftWeekday: obj.userData.shiftWeekday || '',
-      shiftSaturday: obj.userData.shiftSaturday || '',
-      shiftHoliday: obj.userData.shiftHoliday || '',
-      extensionNumber: obj.userData.extensionNumber || '',
-      modelNumber: obj.userData.modelNumber || '',
-      tonerType: obj.userData.tonerType || '',
-      drumType: obj.userData.drumType || '',
-      shelfWidth: obj.userData.shelfWidth || '',
-      shelfDepth: obj.userData.shelfDepth || '',
-      shelfHeight: obj.userData.shelfHeight || '',
-      distNeeded: obj.userData.distNeeded || ''
-    }));
-    const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
-    if (res && res.status === 'success') {
-      alert(`フロア ${this.currentFloor}F のレイアウトを保存しました。`);
+    this.showLoading("フロアレイアウトをスプレッドシートに保存中...");
+    try {
+      const items = this.floorObjects.map(obj => ({
+        floor: this.currentFloor,
+        type: obj.userData.type,
+        x: obj.position.x,
+        z: obj.position.z,
+        rotation: obj.rotation.y,
+        role: obj.userData.role,
+        person: obj.userData.person,
+        department: obj.userData.department || '',
+        shiftWeekday: obj.userData.shiftWeekday || '',
+        shiftSaturday: obj.userData.shiftSaturday || '',
+        shiftHoliday: obj.userData.shiftHoliday || '',
+        extensionNumber: obj.userData.extensionNumber || '',
+        modelNumber: obj.userData.modelNumber || '',
+        tonerType: obj.userData.tonerType || '',
+        drumType: obj.userData.drumType || '',
+        shelfWidth: obj.userData.shelfWidth || '',
+        shelfDepth: obj.userData.shelfDepth || '',
+        shelfHeight: obj.userData.shelfHeight || '',
+        distNeeded: obj.userData.distNeeded || ''
+      }));
+      const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
+      if (res && res.status === 'success') {
+        alert(`フロア ${this.currentFloor}F のレイアウトを保存しました。`);
+      }
+    } finally {
+      this.hideLoading();
     }
   }
 
@@ -367,49 +383,72 @@ class OfficeSimApp {
     let currentAuthEmail = "";
     let currentAuthUserData = null;
 
+    // メール認証
     document.getElementById('btn-check-email')?.addEventListener('click', async () => {
       const email = document.getElementById('login-email').value.trim();
       if (!email) return alert("メールアドレスを入力してください。");
 
-      const res = await this.sheetService.checkEmail(email);
-      if (res && res.status === 'success') {
-        currentAuthEmail = email;
-        currentAuthUserData = res.user;
-        document.getElementById('step-email-area').style.display = 'none';
+      this.showLoading("メールアドレスを照合中...");
+      try {
+        const res = await this.sheetService.checkEmail(email);
+        if (res && res.status === 'success') {
+          currentAuthEmail = email;
+          currentAuthUserData = res.user;
+          document.getElementById('step-email-area').style.display = 'none';
 
-        if (res.hasPassword) {
-          document.getElementById('password-form-area').style.display = 'block';
-          document.getElementById('login-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
+          if (res.hasPassword) {
+            document.getElementById('password-form-area').style.display = 'block';
+            document.getElementById('login-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
+          } else {
+            document.getElementById('setup-form-area').style.display = 'block';
+            document.getElementById('setup-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
+          }
         } else {
-          document.getElementById('setup-form-area').style.display = 'block';
-          document.getElementById('setup-user-name').innerText = `👤 ${res.user.name} (${res.user.role})`;
+          alert(res ? res.message : "アクセスが拒否されました。");
         }
-      } else {
-        alert(res ? res.message : "アクセスが拒否されました。");
+      } finally {
+        this.hideLoading();
       }
     });
 
+    // パスワードログイン
     document.getElementById('btn-login-exec')?.addEventListener('click', async () => {
       const pass = document.getElementById('login-password').value;
-      const res = await this.sheetService.verifyPassword(currentAuthEmail, pass);
-      if (res && res.status === 'success') {
-        this.currentUser = res.user;
-        document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
-        document.getElementById('login-overlay').style.display = 'none';
-        this.loadFloor(this.currentFloor);
-      } else {
-        alert(res ? res.message : "パスワードが正しくありません。");
+      if (!pass) return alert("パスワードを入力してください。");
+
+      this.showLoading("パスワード認証中...");
+      try {
+        const res = await this.sheetService.verifyPassword(currentAuthEmail, pass);
+        if (res && res.status === 'success') {
+          this.currentUser = res.user;
+          document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
+          document.getElementById('login-overlay').style.display = 'none';
+          // ★ ログイン成功時に初めてフロアをロード
+          this.loadFloor(this.currentFloor);
+        } else {
+          alert(res ? res.message : "パスワードが正しくありません。");
+        }
+      } finally {
+        this.hideLoading();
       }
     });
 
+    // 初回パスワード登録
     document.getElementById('btn-setup-exec')?.addEventListener('click', async () => {
       const pass = document.getElementById('setup-password').value;
-      const res = await this.sheetService.setPassword(currentAuthEmail, pass);
-      if (res && res.status === 'success') {
-        this.currentUser = currentAuthUserData;
-        document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
-        document.getElementById('login-overlay').style.display = 'none';
-        this.loadFloor(this.currentFloor);
+      if (!pass) return alert("パスワードを入力してください。");
+
+      this.showLoading("初期パスワードを登録中...");
+      try {
+        const res = await this.sheetService.setPassword(currentAuthEmail, pass);
+        if (res && res.status === 'success') {
+          this.currentUser = currentAuthUserData;
+          document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
+          document.getElementById('login-overlay').style.display = 'none';
+          this.loadFloor(this.currentFloor);
+        }
+      } finally {
+        this.hideLoading();
       }
     });
 
@@ -431,6 +470,8 @@ class OfficeSimApp {
 
     const editBtn = document.getElementById('btn-edit-mode');
     const carouselModal = document.getElementById('furniture-carousel-modal');
+    const paletteFab = document.getElementById('btn-open-palette-fab');
+
     editBtn?.addEventListener('click', () => {
       this.isEditMode = !this.isEditMode;
       editBtn.classList.toggle('active', this.isEditMode);
@@ -445,6 +486,7 @@ class OfficeSimApp {
       }
 
       if (!this.isEditMode) {
+        if (paletteFab) paletteFab.style.display = 'none';
         this.syncCurrentLayoutToSheet();
         if (this.boxHelper) {
           this.scene.remove(this.boxHelper);
@@ -452,13 +494,10 @@ class OfficeSimApp {
         }
         this.selectedObject = null;
         this.editor.showActionBar(false);
-        this.editor.showSnapGuide(0, 0, false); if (paletteFab) paletteFab.style.display = 'none';
+        this.editor.showSnapGuide(0, 0, false);
       }
     });
 
-    const paletteFab = document.getElementById('btn-open-palette-fab');
-
-    // パレットの「✕」ボタンを押したとき: カルーセルを隠し、右上に小アイコンを表示
     document.getElementById('btn-carousel-close')?.addEventListener('click', () => {
       if (carouselModal) {
         carouselModal.style.display = 'none';
@@ -469,7 +508,6 @@ class OfficeSimApp {
       }
     });
 
-    // 右上の小アイコンをクリックしたとき: 小アイコンを隠し、カルーセルを再展開
     paletteFab?.addEventListener('click', () => {
       if (carouselModal) {
         carouselModal.style.display = 'flex';
@@ -531,17 +569,14 @@ class OfficeSimApp {
       }
 
       if (this.isRotatingCamera) {
-        // 水平方位角の回転
         const rotSpeed = 0.005;
         this.cameraAngle -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
-        // 上下仰角の調整（一定範囲内に制限）
         this.cameraElevation = Math.max(16, Math.min(42, this.cameraElevation + (e.clientY - this.pointerStartPos.y) * 0.05));
         this.pointerStartPos = { x: e.clientX, y: e.clientY };
       }
     });
 
     window.addEventListener('pointerup', () => {
-      // クリック判定
       if (!this.hasMovedPointer && !this.isEditMode) {
         this.mouse.x = (this.pointerStartPos.x / window.innerWidth) * 2 - 1;
         this.mouse.y = -(this.pointerStartPos.y / window.innerHeight) * 2 + 1;
@@ -557,7 +592,7 @@ class OfficeSimApp {
 
       this.isDragging = false;
       this.isRotatingCamera = false;
-      this.editor.showSnapGuide(0, 0, false); if (paletteFab) paletteFab.style.display = 'none';
+      this.editor.showSnapGuide(0, 0, false);
     });
 
     window.addEventListener('keydown', e => { if (e.key) this.keys[e.key.toLowerCase()] = true; });
@@ -791,22 +826,27 @@ class OfficeSimApp {
 
   async openHistoryModal() {
     if (!this.currentUser) return;
-    const logs = await this.sheetService.fetchTrainingLogs();
-    let html = '<div style="max-height: 280px; overflow-y: auto;">';
-    if (logs.length === 0) {
-      html += '<p style="color: #78909c; font-size: 13px;">まだ完了した受講・業務履歴はありません。</p>';
-    } else {
-      logs.slice().reverse().forEach(l => {
-        html += `
-          <div style="border-bottom: 1px solid #e2e8f0; padding: 6px 0; font-size: 12px;">
-            <div style="font-weight: bold; color: #1e293b;">🎯 ${l.taskTitle}</div>
-            <div style="color: #64748b; font-size: 11px;">スコア: ${l.score}点 (所要時間: ${l.clearTimeSec}秒) • ${l.timestamp}</div>
-          </div>
-        `;
-      });
+    this.showLoading("受講履歴ログを取得中...");
+    try {
+      const logs = await this.sheetService.fetchTrainingLogs();
+      let html = '<div style="max-height: 280px; overflow-y: auto;">';
+      if (logs.length === 0) {
+        html += '<p style="color: #78909c; font-size: 13px;">まだ完了した受講・業務履歴はありません。</p>';
+      } else {
+        logs.slice().reverse().forEach(l => {
+          html += `
+            <div style="border-bottom: 1px solid #e2e8f0; padding: 6px 0; font-size: 12px;">
+              <div style="font-weight: bold; color: #1e293b;">🎯 ${l.taskTitle}</div>
+              <div style="color: #64748b; font-size: 11px;">スコア: ${l.score}点 (所要時間: ${l.clearTimeSec}秒) • ${l.timestamp}</div>
+            </div>
+          `;
+        });
+      }
+      html += '</div>';
+      this.showModal(`📊 ${this.currentUser.name} さんの受講・実績履歴`, html);
+    } finally {
+      this.hideLoading();
     }
-    html += '</div>';
-    this.showModal(`📊 ${this.currentUser.name} さんの受講・実績履歴`, html);
   }
 
   startDistributionTraining(distId) {
@@ -830,199 +870,229 @@ class OfficeSimApp {
   }
 
   async triggerBoard(boardObj) {
-    const posts = await this.sheetService.fetchBoardPosts();
-    if (posts.length > 0) {
-      localStorage.setItem(`board_last_view_${this.currentFloor}`, posts[posts.length - 1].id);
-      if (boardObj.userData.unreadBoardDot) boardObj.userData.unreadBoardDot.visible = false;
-    }
+    this.showLoading("業務連絡掲示板を同期中...");
+    try {
+      const posts = await this.sheetService.fetchBoardPosts();
+      if (posts.length > 0) {
+        localStorage.setItem(`board_last_view_${this.currentFloor}`, posts[posts.length - 1].id);
+        if (boardObj.userData.unreadBoardDot) boardObj.userData.unreadBoardDot.visible = false;
+      }
 
-    let listHtml = '<div style="max-height: 180px; overflow-y: auto; margin-bottom: 12px; background: #fafafa; padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">';
-    posts.slice().reverse().forEach(p => {
-      listHtml += `<div style="border-bottom: 1px solid #eee; padding: 6px 0; font-size: 12px;">
-        <div style="color: #64748b; font-size: 11px;">[${p.category || '連絡'}] <strong>${p.author || '社員'}</strong> • ${p.date || ''}</div>
-        <div style="color: #1e293b; margin-top: 2px;">${p.message}</div>
-      </div>`;
-    });
-    listHtml += '</div>';
-
-    const defaultAuthor = this.currentUser ? this.currentUser.name : '社員';
-    const formHtml = `
-      <div style="background: #f1f5f9; padding: 10px; border-radius: 8px;">
-        <div style="font-weight: bold; font-size: 12px; margin-bottom: 6px; color: #334155;">📌 掲示板に新規投稿</div>
-        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-          <input type="text" id="b-author" value="${defaultAuthor}" style="flex: 1; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
-          <select id="b-cat" style="padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <option value="連絡">連絡</option><option value="共有">共有</option><option value="至急">至急</option>
-          </select>
-        </div>
-        <textarea id="b-msg" placeholder="投稿内容を入力..." rows="2" style="width: 100%; box-sizing: border-box; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; resize: none;"></textarea>
-        <div style="text-align: right; margin-top: 6px;">
-          <button id="btn-b-submit" class="btn-dialog btn-primary" style="padding: 5px 12px; font-size: 12px;">投稿する</button>
-        </div>
-      </div>
-    `;
-
-    this.showModal("📌 業務連絡掲示板", listHtml + formHtml);
-
-    document.getElementById('btn-b-submit')?.addEventListener('click', async () => {
-      const author = document.getElementById('b-author').value.trim() || defaultAuthor;
-      const category = document.getElementById('b-cat').value;
-      const msg = document.getElementById('b-msg').value.trim();
-      if (!msg) return;
-
-      const now = new Date();
-      const dateStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      await this.sheetService.saveBoardPost({
-        id: `b_${Date.now()}`,
-        date: dateStr,
-        author: author,
-        category: category,
-        message: msg
+      let listHtml = '<div style="max-height: 180px; overflow-y: auto; margin-bottom: 12px; background: #fafafa; padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">';
+      posts.slice().reverse().forEach(p => {
+        listHtml += `<div style="border-bottom: 1px solid #eee; padding: 6px 0; font-size: 12px;">
+          <div style="color: #64748b; font-size: 11px;">[${p.category || '連絡'}] <strong>${p.author || '社員'}</strong> • ${p.date || ''}</div>
+          <div style="color: #1e293b; margin-top: 2px;">${p.message}</div>
+        </div>`;
       });
-      alert("掲示板に投稿しました！");
-      this.closeModal();
-    });
+      listHtml += '</div>';
+
+      const defaultAuthor = this.currentUser ? this.currentUser.name : '社員';
+      const formHtml = `
+        <div style="background: #f1f5f9; padding: 10px; border-radius: 8px;">
+          <div style="font-weight: bold; font-size: 12px; margin-bottom: 6px; color: #334155;">📌 掲示板に新規投稿</div>
+          <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+            <input type="text" id="b-author" value="${defaultAuthor}" style="flex: 1; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <select id="b-cat" style="padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+              <option value="連絡">連絡</option><option value="共有">共有</option><option value="至急">至急</option>
+            </select>
+          </div>
+          <textarea id="b-msg" placeholder="投稿内容を入力..." rows="2" style="width: 100%; box-sizing: border-box; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; resize: none;"></textarea>
+          <div style="text-align: right; margin-top: 6px;">
+            <button id="btn-b-submit" class="btn-dialog btn-primary" style="padding: 5px 12px; font-size: 12px;">投稿する</button>
+          </div>
+        </div>
+      `;
+
+      this.showModal("📌 業務連絡掲示板", listHtml + formHtml);
+
+      document.getElementById('btn-b-submit')?.addEventListener('click', async () => {
+        const author = document.getElementById('b-author').value.trim() || defaultAuthor;
+        const category = document.getElementById('b-cat').value;
+        const msg = document.getElementById('b-msg').value.trim();
+        if (!msg) return;
+
+        this.showLoading("掲示板に投稿中...");
+        try {
+          const now = new Date();
+          const dateStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          await this.sheetService.saveBoardPost({
+            id: `b_${Date.now()}`,
+            date: dateStr,
+            author: author,
+            category: category,
+            message: msg
+          });
+          alert("掲示板に投稿しました！");
+          this.closeModal();
+        } finally {
+          this.hideLoading();
+        }
+      });
+    } finally {
+      this.hideLoading();
+    }
   }
 
   async openDictionaryModal() {
-    const terms = await this.sheetService.fetchDictionary();
-    let listHtml = '<div style="max-height: 220px; overflow-y: auto; margin-bottom: 12px;">';
-    terms.forEach(t => {
-      listHtml += `
-        <div style="margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-          <div style="font-weight: bold; color: #7b1fa2; font-size: 13px;">[${t.category || '一般'}] ${t.term}</div>
-          <div style="font-size: 12px; color: #475569; margin-top: 2px;">${t.content}</div>
+    this.showLoading("社内用語辞書を読み込み中...");
+    try {
+      const terms = await this.sheetService.fetchDictionary();
+      let listHtml = '<div style="max-height: 220px; overflow-y: auto; margin-bottom: 12px;">';
+      terms.forEach(t => {
+        listHtml += `
+          <div style="margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <div style="font-weight: bold; color: #7b1fa2; font-size: 13px;">[${t.category || '一般'}] ${t.term}</div>
+            <div style="font-size: 12px; color: #475569; margin-top: 2px;">${t.content}</div>
+          </div>
+        `;
+      });
+      listHtml += '</div>';
+
+      const addFormHtml = `
+        <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 10px; border-radius: 8px;">
+          <div style="font-weight: bold; font-size: 12px; color: #6b21a8; margin-bottom: 6px;">➕ 用語・マニュアルの追加</div>
+          <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+            <input type="text" id="dict-term" placeholder="用語名" style="flex: 2; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" id="dict-cat" placeholder="分類" style="flex: 1; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+          </div>
+          <textarea id="dict-content" placeholder="説明を入力..." rows="2" style="width: 100%; box-sizing: border-box; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; resize: none;"></textarea>
+          <div style="text-align: right; margin-top: 6px;">
+            <button id="btn-dict-add" class="btn-dialog btn-primary" style="background: #7b1fa2; padding: 5px 12px; font-size: 12px;">追加保存</button>
+          </div>
         </div>
       `;
-    });
-    listHtml += '</div>';
 
-    const addFormHtml = `
-      <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 10px; border-radius: 8px;">
-        <div style="font-weight: bold; font-size: 12px; color: #6b21a8; margin-bottom: 6px;">➕ 用語・マニュアルの追加</div>
-        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-          <input type="text" id="dict-term" placeholder="用語名" style="flex: 2; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
-          <input type="text" id="dict-cat" placeholder="分類" style="flex: 1; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
-        </div>
-        <textarea id="dict-content" placeholder="説明を入力..." rows="2" style="width: 100%; box-sizing: border-box; padding: 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; resize: none;"></textarea>
-        <div style="text-align: right; margin-top: 6px;">
-          <button id="btn-dict-add" class="btn-dialog btn-primary" style="background: #7b1fa2; padding: 5px 12px; font-size: 12px;">追加保存</button>
-        </div>
-      </div>
-    `;
+      this.showModal("📖 社内辞書・マニュアル用語", listHtml + addFormHtml);
 
-    this.showModal("📖 社内辞書・マニュアル用語", listHtml + addFormHtml);
+      document.getElementById('btn-dict-add')?.addEventListener('click', async () => {
+        const term = document.getElementById('dict-term').value.trim();
+        const cat = document.getElementById('dict-cat').value.trim() || '社内業務';
+        const content = document.getElementById('dict-content').value.trim();
+        if (!term || !content) return alert("用語名と説明を入力してください。");
 
-    document.getElementById('btn-dict-add')?.addEventListener('click', async () => {
-      const term = document.getElementById('dict-term').value.trim();
-      const cat = document.getElementById('dict-cat').value.trim() || '社内業務';
-      const content = document.getElementById('dict-content').value.trim();
-      if (!term || !content) return alert("用語名と説明を入力してください。");
-
-      await this.sheetService.saveDictionaryTerm({ term, category: cat, content });
-      alert(`用語「${term}」を追加しました！`);
-      this.closeModal();
-    });
+        this.showLoading("新しい用語を登録中...");
+        try {
+          await this.sheetService.saveDictionaryTerm({ term, category: cat, content });
+          alert(`用語「${term}」を追加しました！`);
+          this.closeModal();
+        } finally {
+          this.hideLoading();
+        }
+      });
+    } finally {
+      this.hideLoading();
+    }
   }
 
   async openWorkflowsTableModal() {
-    let rows = await this.sheetService.fetchWorkflows();
-    if (!rows || rows.length === 0) {
-      rows = [
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },
-        { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },
-        { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },
-        { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }
-      ];
-    }
+    this.showLoading("業務フロー情報を取得中...");
+    try {
+      let rows = await this.sheetService.fetchWorkflows();
+      if (!rows || rows.length === 0) {
+        rows = [
+          { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },
+          { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },
+          { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },
+          { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },
+          { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },
+          { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }
+        ];
+      }
 
-    let tableRowsHtml = '';
-    rows.forEach((r, idx) => {
-      tableRowsHtml += `
-        <tr data-index="${idx}" style="border-bottom: 1px solid #cbd5e1;">
-          <td style="padding: 6px; font-weight: bold; color: #0284c7;">${r.shift}</td>
-          <td style="padding: 6px;">${r.time}</td>
-          <td style="padding: 6px; font-weight: bold;">${r.taskName}</td>
-          <td style="padding: 6px;"><span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${r.position}</span></td>
-          <td style="padding: 6px; font-size: 11px; max-width: 260px; line-height: 1.3;">${r.description}</td>
-          <td style="padding: 6px; text-align: center;">
-            <button class="btn-wf-edit-row" data-index="${idx}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer;">編集</button>
-          </td>
-        </tr>
-      `;
-    });
-
-    const modalBodyHtml = `
-      <div style="max-height: 340px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
-          <thead style="background: #f8fafc; position: sticky; top: 0; border-bottom: 2px solid #cbd5e1;">
-            <tr>
-              <th style="padding: 6px;">シフト</th>
-              <th style="padding: 6px;">時間</th>
-              <th style="padding: 6px;">業務名</th>
-              <th style="padding: 6px;">担当</th>
-              <th style="padding: 6px;">業務内容・配布先</th>
-              <th style="padding: 6px;">操作</th>
-            </tr>
-          </thead>
-          <tbody>${tableRowsHtml}</tbody>
-        </table>
-      </div>
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <button id="btn-wf-add-new" class="btn-dialog" style="background: #10b981; color: #fff; font-size: 12px; padding: 6px 12px;">+ 新規業務行の追加</button>
-        <button id="btn-wf-save-all" class="btn-dialog btn-primary" style="font-size: 12px; padding: 6px 16px;">スプレッドシートに保存</button>
-      </div>
-    `;
-
-    this.showModal("📋 業務情報一覧・簡易マニュアル（編集対応）", modalBodyHtml);
-
-    document.querySelectorAll('.btn-wf-edit-row').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
-        const item = rows[idx];
-        const editHtml = `
-          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
-            <label><strong>時間:</strong> <input type="text" id="edit-wf-time" value="${item.time}" style="width: 100%; padding: 4px;"></label>
-            <label><strong>業務名:</strong> <input type="text" id="edit-wf-name" value="${item.taskName}" style="width: 100%; padding: 4px;"></label>
-            <label><strong>担当 (早番/遅番):</strong> <input type="text" id="edit-wf-pos" value="${item.position}" style="width: 100%; padding: 4px;"></label>
-            <label><strong>詳細説明:</strong> <textarea id="edit-wf-desc" rows="4" style="width: 100%; padding: 4px;">${item.description}</textarea></label>
-            <div style="text-align: right; margin-top: 6px;">
-              <button id="btn-wf-update-commit" class="btn-dialog btn-primary">行を更新</button>
-            </div>
-          </div>
+      let tableRowsHtml = '';
+      rows.forEach((r, idx) => {
+        tableRowsHtml += `
+          <tr data-index="${idx}" style="border-bottom: 1px solid #cbd5e1;">
+            <td style="padding: 6px; font-weight: bold; color: #0284c7;">${r.shift}</td>
+            <td style="padding: 6px;">${r.time}</td>
+            <td style="padding: 6px; font-weight: bold;">${r.taskName}</td>
+            <td style="padding: 6px;"><span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${r.position}</span></td>
+            <td style="padding: 6px; font-size: 11px; max-width: 260px; line-height: 1.3;">${r.description}</td>
+            <td style="padding: 6px; text-align: center;">
+              <button class="btn-wf-edit-row" data-index="${idx}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer;">編集</button>
+            </td>
+          </tr>
         `;
-        this.showModal(`✏️ 業務行の編集: ${item.taskName}`, editHtml);
-        document.getElementById('btn-wf-update-commit')?.addEventListener('click', () => {
-          item.time = document.getElementById('edit-wf-time').value;
-          item.taskName = document.getElementById('edit-wf-name').value;
-          item.position = document.getElementById('edit-wf-pos').value;
-          item.description = document.getElementById('edit-wf-desc').value;
-          this.openWorkflowsTableModal();
+      });
+
+      const modalBodyHtml = `
+        <div style="max-height: 340px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+            <thead style="background: #f8fafc; position: sticky; top: 0; border-bottom: 2px solid #cbd5e1;">
+              <tr>
+                <th style="padding: 6px;">シフト</th>
+                <th style="padding: 6px;">時間</th>
+                <th style="padding: 6px;">業務名</th>
+                <th style="padding: 6px;">担当</th>
+                <th style="padding: 6px;">業務内容・配布先</th>
+                <th style="padding: 6px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>${tableRowsHtml}</tbody>
+          </table>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <button id="btn-wf-add-new" class="btn-dialog" style="background: #10b981; color: #fff; font-size: 12px; padding: 6px 12px;">+ 新規業務行の追加</button>
+          <button id="btn-wf-save-all" class="btn-dialog btn-primary" style="font-size: 12px; padding: 6px 16px;">スプレッドシートに保存</button>
+        </div>
+      `;
+
+      this.showModal("📋 業務情報一覧・簡易マニュアル（編集対応）", modalBodyHtml);
+
+      document.querySelectorAll('.btn-wf-edit-row').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+          const item = rows[idx];
+          const editHtml = `
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+              <label><strong>時間:</strong> <input type="text" id="edit-wf-time" value="${item.time}" style="width: 100%; padding: 4px;"></label>
+              <label><strong>業務名:</strong> <input type="text" id="edit-wf-name" value="${item.taskName}" style="width: 100%; padding: 4px;"></label>
+              <label><strong>担当 (早番/遅番):</strong> <input type="text" id="edit-wf-pos" value="${item.position}" style="width: 100%; padding: 4px;"></label>
+              <label><strong>詳細説明:</strong> <textarea id="edit-wf-desc" rows="4" style="width: 100%; padding: 4px;">${item.description}</textarea></label>
+              <div style="text-align: right; margin-top: 6px;">
+                <button id="btn-wf-update-commit" class="btn-dialog btn-primary">行を更新</button>
+              </div>
+            </div>
+          `;
+          this.showModal(`✏️ 業務行の編集: ${item.taskName}`, editHtml);
+          document.getElementById('btn-wf-update-commit')?.addEventListener('click', () => {
+            item.time = document.getElementById('edit-wf-time').value;
+            item.taskName = document.getElementById('edit-wf-name').value;
+            item.position = document.getElementById('edit-wf-pos').value;
+            item.description = document.getElementById('edit-wf-desc').value;
+            this.openWorkflowsTableModal();
+          });
         });
       });
-    });
 
-    document.getElementById('btn-wf-add-new')?.addEventListener('click', () => {
-      rows.push({
-        shift: "昼勤",
-        timeGroup: "新規",
-        time: "10:00",
-        taskName: "新規タスク",
-        position: "早番",
-        description: "業務の詳細を入力してください。",
-        briefexplanation: "概要",
-        weekends: ""
+      document.getElementById('btn-wf-add-new')?.addEventListener('click', () => {
+        rows.push({
+          shift: "昼勤",
+          timeGroup: "新規",
+          time: "10:00",
+          taskName: "新規タスク",
+          position: "早番",
+          description: "業務の詳細を入力してください。",
+          briefexplanation: "概要",
+          weekends: ""
+        });
+        this.openWorkflowsTableModal();
       });
-      this.openWorkflowsTableModal();
-    });
 
-    document.getElementById('btn-wf-save-all')?.addEventListener('click', async () => {
-      await this.sheetService.saveWorkflows(rows);
-      alert("業務情報一覧をスプレッドシート（Workflows）に保存しました！");
-      this.closeModal();
-    });
+      document.getElementById('btn-wf-save-all')?.addEventListener('click', async () => {
+        this.showLoading("業務情報マニュアルを保存中...");
+        try {
+          await this.sheetService.saveWorkflows(rows);
+          alert("業務情報一覧をスプレッドシート（Workflows）に保存しました！");
+          this.closeModal();
+        } finally {
+          this.hideLoading();
+        }
+      });
+    } finally {
+      this.hideLoading();
+    }
   }
 
   triggerElevator() {
@@ -1085,11 +1155,9 @@ class OfficeSimApp {
 
     const hit = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
 
-    // カメラ位置を安全に追従更新
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    // スティック・キー操作中のみ衝突タイマー（1.0秒押し当て）を加算
     const isMovingInput = Math.hypot(vx, vy) > 0.05;
 
     if (!this.isModalActive && hit && isMovingInput) {
@@ -1123,9 +1191,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
-
-
-
-
-

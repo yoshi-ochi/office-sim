@@ -236,6 +236,39 @@
     🪑 家具パレット
   </button>
 
+  <!-- グローバル・ローディングオーバーレイ -->
+  <div id="global-loading-overlay" style="
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(6px);
+    z-index: 9999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: auto;
+  ">
+    <div class="loader-spinner-wrapper">
+      <div class="loader-ring outer"></div>
+      <div class="loader-ring inner"></div>
+      <div class="loader-core-icon">🏢</div>
+    </div>
+    <div id="loading-status-text" style="
+      margin-top: 24px;
+      color: #f8fafc;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    ">読み込み中...</div>
+  </div>
+
   <script>
     (function() {
       const script = document.createElement('script');
