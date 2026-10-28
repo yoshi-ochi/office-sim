@@ -21,8 +21,8 @@ class OfficeSimApp {
     this.isDragging = false;
     this.boxHelper = null;
 
-    this.cameraAngle = Math.PI / 4; this.cameraPitch = 0.58; // 自然な見下ろし角
-    
+    this.cameraAngle = Math.PI / 4;
+    this.cameraPitch = 0.58;
     this.cameraDistance = 26.0;
     this.isRotatingCamera = false;
     this.pointerStartPos = { x: 0, y: 0 };
@@ -35,6 +35,7 @@ class OfficeSimApp {
     this.collidingObject = null;
     this.collisionTimer = 0;
     this.isModalActive = false;
+    this.isTransitioning = false;
     this.currentUser = null;
 
     this.clock = new THREE.Clock();
@@ -69,7 +70,6 @@ class OfficeSimApp {
     this.scene.background = new THREE.Color(theme.SCENE_BG);
 
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
-    // 視野角45度の透視投影カメラ（歪みのない自然な遠近パース）
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
     this.updateCamera(this.mySeatPos.x, this.mySeatPos.z);
 
@@ -85,7 +85,6 @@ class OfficeSimApp {
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    // 床面メッシュの初期設定
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshLambertMaterial({ color: theme.FLOOR_COLOR });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -93,7 +92,6 @@ class OfficeSimApp {
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
-    // サブグリッド & メジャーグリッド
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, theme.GRID_SUB, theme.GRID_SUB);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
@@ -118,7 +116,6 @@ class OfficeSimApp {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
 
-    // 水平線上に消失点を作る安定したカメラ座標
     const distH = this.cameraDistance * Math.cos(this.cameraPitch);
     const heightY = Math.max(8.0, this.cameraDistance * Math.sin(this.cameraPitch));
 
@@ -173,7 +170,6 @@ class OfficeSimApp {
       }
       this.editor.showActionBar(false);
 
-      // 床色の決定順序: 各階指定色 -> 共通設定色 (FLOOR_THEME)
       const floorInfo = CONFIG.FLOORS.find(f => f.id === floorId);
       const themeColor = (CONFIG.FLOOR_THEME && CONFIG.FLOOR_THEME.FLOOR_COLOR) ? CONFIG.FLOOR_THEME.FLOOR_COLOR : 0x828890;
       const finalColor = (floorInfo && floorInfo.color !== undefined) ? floorInfo.color : themeColor;
@@ -387,8 +383,81 @@ class OfficeSimApp {
     }
   }
 
+  async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+    this.closeModal();
+
+    const iris = document.getElementById('iris-overlay');
+
+    if (interactObj && interactObj.userData.isElevator) {
+      const doorL = interactObj.userData.doorL;
+      const doorR = interactObj.userData.doorR;
+      if (doorL && doorR) {
+        for (let t = 0; t <= 15; t++) {
+          doorL.position.x = -0.35 - (t / 15) * 0.45;
+          doorR.position.x = 0.35 + (t / 15) * 0.45;
+          await new Promise(r => setTimeout(r, 20));
+        }
+      }
+      const startZ = this.player.position.z;
+      for (let t = 0; t <= 20; t++) {
+        this.player.position.z = startZ - (t / 20) * 1.0;
+        this.player.position.y = (t % 4 < 2) ? 0.05 : 0;
+        await new Promise(r => setTimeout(r, 25));
+      }
+    } else if (interactObj && (interactObj.userData.isStairsDown || interactObj.userData.isStairsUp)) {
+      const isDown = interactObj.userData.isStairsDown;
+      const startZ = this.player.position.z;
+      for (let t = 0; t <= 25; t++) {
+        this.player.position.z = startZ - (t / 25) * 1.2;
+        this.player.position.y += isDown ? -0.025 : 0.035;
+        await new Promise(r => setTimeout(r, 25));
+      }
+    }
+
+    if (iris) {
+      const p = this.player.position.clone();
+      p.y += 0.8;
+      p.project(this.camera);
+      const screenX = (p.x * 0.5 + 0.5) * window.innerWidth;
+      const screenY = (-(p.y * 0.5) + 0.5) * window.innerHeight;
+
+      iris.style.display = 'block';
+      iris.style.opacity = '1';
+      iris.style.clipPath = 'circle(150% at ' + screenX + 'px ' + screenY + 'px)';
+      requestAnimationFrame(() => {
+        iris.style.clipPath = 'circle(0% at ' + screenX + 'px ' + screenY + 'px)';
+      });
+      await new Promise(r => setTimeout(r, 800));
+    }
+
+    this.currentFloor = targetFloor;
+    const select = document.getElementById('floor-select');
+    if (select) select.value = String(targetFloor);
+
+    await this.loadFloor(targetFloor);
+
+    if (arrivalType === 'stairs_up') this.player.position.set(12, 0, -14);
+    else if (arrivalType === 'stairs_down') this.player.position.set(16, 0, -14);
+    else if (arrivalType === 'elevator') this.player.position.set(-14, 0, -14);
+    else this.player.position.set(0, 0, 0);
+
+    this.player.position.y = 0;
+    this.updateCamera(this.player.position.x, this.player.position.z);
+
+    if (iris) {
+      iris.style.transition = 'opacity 0.65s ease';
+      iris.style.opacity = '0';
+      await new Promise(r => setTimeout(r, 700));
+      iris.style.display = 'none';
+      iris.style.transition = 'clip-path 0.75s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease';
+    }
+
+    this.isTransitioning = false;
+  }
+
   setupEvents() {
-    // 1画面一括ログイン (メール & パスワード)
     const btnLogin = document.getElementById('btn-login-unified');
     if (btnLogin) {
       btnLogin.addEventListener('click', async () => {
@@ -599,34 +668,9 @@ class OfficeSimApp {
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
 
-    let initialPinchDistance = null, initialZoom = 1.0;
-    const minZoom = 0.4, maxZoom = 2.5;
-    const getTouchDist = (t1, t2) => Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-
-    window.addEventListener('touchstart', e => {
-      if (e.touches.length === 2) {
-        this.isRotatingCamera = false;
-        initialPinchDistance = getTouchDist(e.touches[0], e.touches[1]);
-        initialZoom = this.camera.zoom;
-      }
-    }, { passive: false });
-
-    window.addEventListener('touchmove', e => {
-      if (e.touches.length === 2 && initialPinchDistance !== null) {
-        e.preventDefault();
-        const curDist = getTouchDist(e.touches[0], e.touches[1]);
-        const scale = curDist / initialPinchDistance;
-        this.camera.zoom = Math.max(minZoom, Math.min(maxZoom, initialZoom * scale));
-        this.camera.updateProjectionMatrix();
-      }
-    }, { passive: false });
-
-    window.addEventListener('touchend', e => { if (e.touches.length < 2) initialPinchDistance = null; });
-
     window.addEventListener('wheel', e => {
       if (e.target.closest('#chat-drawer') || e.target.closest('#info-modal') || e.target.closest('#furniture-carousel-modal')) return;
       e.preventDefault();
-      // 透視投影カメラでのスムーズズームイン・ズームアウト
       const zoomDelta = e.deltaY * 0.03;
       this.cameraDistance = Math.max(8.0, Math.min(65.0, this.cameraDistance + zoomDelta));
     }, { passive: false });
@@ -638,7 +682,7 @@ class OfficeSimApp {
     });
 
     document.getElementById('floor-select')?.addEventListener('change', e => {
-      this.changeFloor(parseInt(e.target.value, 10), 'center');
+      this.triggerFloorTransition(parseInt(e.target.value, 10), 'center', null);
     });
 
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
@@ -652,12 +696,12 @@ class OfficeSimApp {
     const data = obj.userData;
 
     if (data.isStairsUp) {
-      if (this.currentFloor < CONFIG.FLOORS.length) this.triggerFloorTransition(this.currentFloor + 1, "stairs_up", obj);
+      if (this.currentFloor < CONFIG.FLOORS.length) this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', obj);
       else alert('最上階のためこれ以上上がれません。');
       return;
     }
     if (data.isStairsDown) {
-      if (this.currentFloor > 1) this.triggerFloorTransition(this.currentFloor - 1, "stairs_down", obj);
+      if (this.currentFloor > 1) this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', obj);
       else alert('1階のためこれ以上下りられません。');
       return;
     }
@@ -1073,93 +1117,11 @@ class OfficeSimApp {
     this.showModal('🛗 エレベーター操作盤', buttonsHtml);
     document.querySelectorAll('.btn-elv-floor').forEach(btn => {
       btn.addEventListener('click', e => {
+        const targetF = parseInt(e.currentTarget.getAttribute('data-floor'), 10);
         const elvObj = this.floorObjects.find(o => o.userData.isElevator);
-        this.triggerFloorTransition(parseInt(e.currentTarget.getAttribute('data-floor'), 10), 'elevator', elvObj);
+        this.triggerFloorTransition(targetF, 'elevator', elvObj);
       });
     });
-  }
-
-    // キャラクター中心のアイリス暗転トランジション
-  async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
-    if (this.isTransitioning) return;
-    this.isTransitioning = true;
-    this.closeModal();
-
-    const iris = document.getElementById('iris-overlay');
-
-    // 1. インタラクションモーション（エレベーター入室 or 階段昇降）
-    if (interactObj && interactObj.userData.isElevator) {
-      // 扉が左右に開く
-      const doorL = interactObj.userData.doorL;
-      const doorR = interactObj.userData.doorR;
-      if (doorL && doorR) {
-        for (let t = 0; t <= 15; t++) {
-          doorL.position.x = -0.35 - (t / 15) * 0.45;
-          doorR.position.x = 0.35 + (t / 15) * 0.45;
-          await new Promise(r => setTimeout(r, 20));
-        }
-      }
-      // プレイヤーが扉の中へ入る
-      const startZ = this.player.position.z;
-      for (let t = 0; t <= 20; t++) {
-        this.player.position.z = startZ - (t / 20) * 1.0;
-        this.player.position.y = (t % 4 < 2) ? 0.05 : 0;
-        await new Promise(r => setTimeout(r, 25));
-      }
-    } else if (interactObj && (interactObj.userData.isStairsDown || interactObj.userData.isStairsUp)) {
-      // 階段を登る・下りるモーション
-      const isDown = interactObj.userData.isStairsDown;
-      const startZ = this.player.position.z;
-      for (let t = 0; t <= 25; t++) {
-        this.player.position.z = startZ - (t / 25) * 1.2;
-        this.player.position.y += isDown ? -0.025 : 0.035;
-        await new Promise(r => setTimeout(r, 25));
-      }
-    }
-
-    // 2. プレイヤーの画面座標を計算して中心とする円形暗転（アイリスアウト）
-    if (iris) {
-      const p = this.player.position.clone();
-      p.y += 0.8;
-      p.project(this.camera);
-      const screenX = (p.x * 0.5 + 0.5) * window.innerWidth;
-      const screenY = (-(p.y * 0.5) + 0.5) * window.innerHeight;
-
-      iris.style.display = 'block';
-      iris.style.opacity = '1';
-      iris.style.clipPath = \circle(150% at \px \px)\;
-      // 次のフレームで円を収縮
-      requestAnimationFrame(() => {
-        iris.style.clipPath = \circle(0% at \px \px)\;
-      });
-      await new Promise(r => setTimeout(r, 800));
-    }
-
-    // 3. フロア切り替えと着地
-    this.currentFloor = targetFloor;
-    const select = document.getElementById('floor-select');
-    if (select) select.value = String(targetFloor);
-
-    await this.loadFloor(targetFloor);
-
-    if (arrivalType === 'stairs_up') this.player.position.set(12, 0, -14);
-    else if (arrivalType === 'stairs_down') this.player.position.set(16, 0, -14);
-    else if (arrivalType === 'elevator') this.player.position.set(-14, 0, -14);
-    else this.player.position.set(0, 0, 0);
-
-    this.player.position.y = 0; // 高さをリセット
-    this.updateCamera(this.player.position.x, this.player.position.z);
-
-    // 4. ジワリと全体が明転（フェードアウト）
-    if (iris) {
-      iris.style.transition = 'opacity 0.65s ease';
-      iris.style.opacity = '0';
-      await new Promise(r => setTimeout(r, 700));
-      iris.style.display = 'none';
-      iris.style.transition = 'clip-path 0.75s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease';
-    }
-
-    this.isTransitioning = false;
   }
 
   showModal(title, body) {
@@ -1195,7 +1157,7 @@ class OfficeSimApp {
 
     const isMovingInput = Math.hypot(vx, vy) > 0.05;
 
-    if (!this.isModalActive && hit && isMovingInput) {
+    if (!this.isModalActive && !this.isTransitioning && hit && isMovingInput) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
         if (this.collisionTimer >= 1.0) {
@@ -1226,5 +1188,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
-
