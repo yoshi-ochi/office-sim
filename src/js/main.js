@@ -1,4 +1,4 @@
-// src/js/main.js
+﻿// src/js/main.js
 import { CONFIG } from './config.js';
 import { FurnitureFactory } from './entities/Furniture.js';
 import { Player } from './entities/Player.js';
@@ -21,7 +21,6 @@ class OfficeSimApp {
     this.isDragging = false;
     this.boxHelper = null;
 
-    // カメラ回転パラメータ
     this.cameraAngleH = Math.PI / 4;
     this.cameraAngleV = 0.85;
     this.cameraRadius = 32.0;
@@ -74,12 +73,10 @@ class OfficeSimApp {
     this.floorPlane.receiveShadow = true;
     this.scene.add(this.floorPlane);
 
-    // 50cm サブグリッド
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
-    // 5m メインガイドライン
     this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
@@ -468,7 +465,6 @@ class OfficeSimApp {
         this.hasMovedPointer = true;
       }
 
-      // 家具配置ドラッグ移動 (10cm精密スナップ、Shift押下でフリー)
       if (this.isEditMode && this.isDragging && this.selectedObject) {
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -490,19 +486,16 @@ class OfficeSimApp {
         return;
       }
 
-      // カメラドラッグ回転
       if (this.isRotatingCamera) {
         const rotSpeed = 0.006;
         this.cameraAngleH -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
         this.cameraAngleV += (e.clientY - this.pointerStartPos.y) * rotSpeed;
-
         this.cameraAngleV = Math.max(0.2, Math.min(Math.PI / 2.1, this.cameraAngleV));
         this.pointerStartPos = { x: e.clientX, y: e.clientY };
       }
     });
 
     window.addEventListener('pointerup', () => {
-      // クリック判定（移動なしタップ時）
       if (!this.hasMovedPointer && !this.isEditMode) {
         this.mouse.x = (this.pointerStartPos.x / window.innerWidth) * 2 - 1;
         this.mouse.y = -(this.pointerStartPos.y / window.innerHeight) * 2 + 1;
@@ -524,7 +517,6 @@ class OfficeSimApp {
     window.addEventListener('keydown', e => { if (e.key) this.keys[e.key.toLowerCase()] = true; });
     window.addEventListener('keyup', e => { if (e.key) this.keys[e.key.toLowerCase()] = false; });
 
-    // ジョイスティック
     const zone = document.getElementById('joystick-zone');
     const knob = document.getElementById('joystick-knob');
     let active = false, startX = 0, startY = 0;
@@ -556,7 +548,6 @@ class OfficeSimApp {
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
 
-    // ピンチズーム & ホイール
     let initialPinchDistance = null, initialZoom = 1.0;
     const minZoom = 0.4, maxZoom = 2.5;
     const getTouchDist = (t1, t2) => Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
