@@ -41,6 +41,7 @@ class OfficeSimApp {
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
     const d = CONFIG.CAMERA_VIEW_SIZE || 12;
     this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+    this.camera.zoom = 1.0;
     this.updateCamera(0, 0);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -135,7 +136,6 @@ class OfficeSimApp {
       this.floorObjects.push(furniture);
     });
 
-    // エレベーター、上り階段、下り階段を常設
     if (!this.floorObjects.some(o => o.userData.isElevator)) {
       const elv = FurnitureFactory.create('elevator', { x: -9, z: -10, rotation: 0, role: 'エレベーター' });
       this.scene.add(elv); this.floorObjects.push(elv);
@@ -188,23 +188,20 @@ class OfficeSimApp {
     });
   }
 
-  // 卓上プリンターの机上／机下自動判定付きスポーン
   spawnFurnitureInFrontOfPlayer(type) {
     const fwd = this.player.getForwardVector();
     let snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let isUnderDesk = false;
 
-    // 卓上プリンターの場合: 周囲1.2m以内の机を検索
     if (type === 'printer_desk') {
       const nearbyDesk = this.floorObjects.find(o => o.userData.type === 'desk' && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 1.2);
       if (nearbyDesk) {
         snapX = nearbyDesk.position.x;
         snapZ = nearbyDesk.position.z;
-        // すでにこの机上にプリンターが存在するか判定
         const existingPrinter = this.floorObjects.find(o => o.userData.type === 'printer_desk' && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 0.3);
         if (existingPrinter) {
-          isUnderDesk = true; // 2台目は机の下に配置
+          isUnderDesk = true;
         }
       }
     }
@@ -417,6 +414,64 @@ class OfficeSimApp {
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
 
+    // --- ピンチイン / ピンチアウト & マウスホイール ズーム制御 ---
+    let initialPinchDistance = null;
+    let initialZoom = 1.0;
+    const minZoom = 0.5;
+    const maxZoom = 2.5;
+
+    const getTouchDistance = (t1, t2) => {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    window.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        initialPinchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        initialZoom = this.camera.zoom;
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', e => {
+      if (e.touches.length === 2 && initialPinchDistance !== null) {
+        e.preventDefault();
+        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        const scale = currentDistance / initialPinchDistance;
+        const newZoom = Math.max(minZoom, Math.min(maxZoom, initialZoom * scale));
+
+        this.camera.zoom = newZoom;
+        this.camera.updateProjectionMatrix();
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchend', e => {
+      if (e.touches.length < 2) {
+        initialPinchDistance = null;
+      }
+    });
+
+    window.addEventListener('wheel', e => {
+      if (e.target.closest('#chat-drawer') || e.target.closest('#info-modal') || e.target.closest('#furniture-palette')) {
+        return;
+      }
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+      this.camera.zoom = Math.max(minZoom, Math.min(maxZoom, this.camera.zoom * zoomFactor));
+      this.camera.updateProjectionMatrix();
+    }, { passive: false });
+
+    window.addEventListener('resize', () => {
+      const aspect = window.innerWidth / window.innerHeight;
+      const d = CONFIG.CAMERA_VIEW_SIZE || 12;
+      this.camera.left = -d * aspect;
+      this.camera.right = d * aspect;
+      this.camera.top = d;
+      this.camera.bottom = -d;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
     document.getElementById('floor-select')?.addEventListener('change', e => {
       this.changeFloor(parseInt(e.target.value, 10), 'center');
     });
@@ -424,7 +479,6 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
-  // --- オブジェクト詳細（周辺の電話・プリンター情報を結合して表示） ---
   handleTriggerObject(obj) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
@@ -459,16 +513,13 @@ class OfficeSimApp {
       return;
     }
 
-    // デスク接触時：周囲（1.2m以内）の電話やプリンター情報を探索・結合
     if (data.type === 'desk') {
       const px = obj.position.x;
       const pz = obj.position.z;
 
-      // 周辺の内線電話
       const nearbyPhones = this.floorObjects.filter(o => o.userData.type === 'phone' && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
       const extStr = nearbyPhones.map(p => p.userData.extensionNumber).filter(Boolean).join(', ') || data.extensionNumber || 'なし';
 
-      // 周辺のプリンター（卓上または床置き）
       const nearbyPrinters = this.floorObjects.filter(o => o.userData.type.includes('printer') && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
 
       let printerInfoHtml = '';
@@ -508,7 +559,6 @@ class OfficeSimApp {
       return;
     }
 
-    // 単体プリンター接触時
     if (data.type.includes('printer')) {
       const bodyHtml = `
         <div style="font-size: 13px; line-height: 1.6;">
