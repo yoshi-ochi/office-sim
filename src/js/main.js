@@ -74,25 +74,25 @@ class OfficeSimApp {
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-    const dirLight = new THREE.DirectionalLight(0xfff6e5, 0.65);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.55);
     dirLight.position.set(45, 60, 45);
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
     // 暗めのオフィスグレーフロア
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
-    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d6, roughness: 0.9 });
+    this.floorMat = new THREE.MeshLambertMaterial({ color: 0x949ba3 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
     this.floorPlane.rotation.x = -Math.PI / 2;
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
-    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xb0b4bc, 0xc4c8d0);
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0x828992, 0xa3a9b0);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
-    this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
+    this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x475569, 0x64748b);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
 
@@ -164,7 +164,7 @@ class OfficeSimApp {
       this.editor.showActionBar(false);
 
       const floorInfo = CONFIG.FLOORS.find(f => f.id === floorId);
-      if (floorInfo) this.floorMat.color.setHex(floorInfo.color);
+      if (floorInfo) this.floorMat.color.setHex(floorInfo.color || 0x949ba3);
 
       let layout = await this.sheetService.fetchFloorLayout(floorId);
       if (!layout || layout.length === 0) {
@@ -1138,3 +1138,4 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
