@@ -157,7 +157,6 @@ class OfficeSimApp {
     return null;
   }
 
-  // silent = true の時はローディング画面を出さない
   async loadFloor(floorId, silent = false) {
     if (!silent) this.showLoading();
     try {
@@ -384,15 +383,12 @@ class OfficeSimApp {
     }
   }
 
-  // =========================================================================
   // ★ 階移動モーション（画面の対角を覆う長方形の内側 且つ 円の外側を黒くする描画）
-  // =========================================================================
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
     this.closeModal();
 
-    // 1. 移動演出（エレベーター扉開閉・中へ進む / 階段を登る・下りる）
     if (interactObj && interactObj.userData.isElevator) {
       const doorL = interactObj.userData.doorL;
       const doorR = interactObj.userData.doorR;
@@ -419,7 +415,6 @@ class OfficeSimApp {
       }
     }
 
-    // 2. 「長方形の内側 且つ 円の外側」を黒く塗りつぶす Canvas 描画
     const cvs = document.getElementById('transition-canvas');
     const ctx = cvs ? cvs.getContext('2d') : null;
 
@@ -428,33 +423,25 @@ class OfficeSimApp {
       cvs.height = window.innerHeight;
       cvs.style.display = 'block';
 
-      // キャラクター頭部の画面座標
       const p = this.player.position.clone();
       p.y += 0.85;
       p.project(this.camera);
       const cx = (p.x * 0.5 + 0.5) * cvs.width;
       const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
-
-      // 画面の対角長を直径とする円の初期半径（画面全体をすっぽり覆う）
       const maxRadius = Math.hypot(cvs.width, cvs.height);
 
-      // 【重要】長方形の内側 かつ 円の外側 を黒くする描画（evenodd ルール）
       const drawCutoutHole = (r) => {
         ctx.clearRect(0, 0, cvs.width, cvs.height);
         ctx.fillStyle = '#0b0f19';
         ctx.beginPath();
-        // 外側の長方形（全画面）
         ctx.rect(0, 0, cvs.width, cvs.height);
-        // 内側の型抜き円（半径 r が 0 より大きい場合のみ穴を開ける）
         if (r > 0) {
           ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
         }
-        // 長方形の内側 且つ 円の外側 のみが黒く塗りつぶされる
         ctx.fill('evenodd');
       };
 
-      // フェーズ1: 円の半径を画面全域から「キャラクターの周囲（半径45px）」まで狭める
-      const duration1 = 650; // 0.65秒
+      const duration1 = 650;
       const startT1 = performance.now();
       await new Promise(resolve => {
         const anim1 = (now) => {
@@ -468,11 +455,9 @@ class OfficeSimApp {
         requestAnimationFrame(anim1);
       });
 
-      // キャラクターだけが見えている状態で一瞬キープ (120ms)
       await new Promise(r => setTimeout(r, 120));
 
-      // フェーズ2: 最後にキャラクター頭元の穴（45px -> 0px）が閉じて完全な全画面真っ黒へ
-      const duration2 = 240; // 0.24秒
+      const duration2 = 240;
       const startT2 = performance.now();
       await new Promise(resolve => {
         const anim2 = (now) => {
@@ -485,11 +470,9 @@ class OfficeSimApp {
         requestAnimationFrame(anim2);
       });
 
-      // 完全に真っ黒な状態を固定
       drawCutoutHole(0);
     }
 
-    // 3. 完全暗転の裏でフロアをサイレント読み込み（ローディングUIは一切出さない）
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
@@ -504,16 +487,15 @@ class OfficeSimApp {
     this.player.position.y = 0;
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // 4. 新フロアがジワリと明転（黒画面の Alpha を 1.0 -> 0.0 へフェード）
     if (cvs && ctx) {
-      const fadeDuration = 700; // 0.7秒
+      const fadeDuration = 700;
       const startFade = performance.now();
       await new Promise(resolve => {
         const animFade = (now) => {
           const progress = Math.min(1, (now - startFade) / fadeDuration);
-          const alpha = 1 - progress;
+          const alpha = Math.max(0, 1 - progress);
           ctx.clearRect(0, 0, cvs.width, cvs.height);
-          ctx.fillStyle = 'rgba(11, 15, 25, ' + alpha + ')';
+          ctx.fillStyle = 'rgba(11, 15, 25, ' + alpha.toFixed(3) + ')';
           ctx.fillRect(0, 0, cvs.width, cvs.height);
           if (progress < 1) requestAnimationFrame(animFade);
           else resolve();
