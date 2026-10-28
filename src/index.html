@@ -234,6 +234,7 @@
 
   <!-- アイリスアウト/イン用 シネマティックトランジション -->
     <!-- キャラクター中心アイリス暗転＆明転オーバーレイ -->
+    <!-- 円で型抜きされた暗転幕（外側が黒く、穴が縮小して最後に暗転） -->
   <div id="iris-overlay" style="
     display: none;
     position: fixed;
@@ -241,10 +242,18 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: #0b0f19;
-    z-index: 99999;
     pointer-events: none;
-  "></div>
+    z-index: 99999;
+    overflow: hidden;
+  ">
+    <div id="iris-hole" style="
+      position: absolute;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 9999px #0b0f19;
+      pointer-events: none;
+    "></div>
+  </div>
 
   <script>
     (function() {
@@ -256,3 +265,4 @@
   </script>
 </body>
 </html>
+
