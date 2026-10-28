@@ -21,10 +21,10 @@ class OfficeSimApp {
     this.isDragging = false;
     this.boxHelper = null;
 
-    // --- 視点（カメラ回転）用パラメータ ---
-    this.cameraAngleH = Math.PI / 4; // 水平角度（初期45度）
-    this.cameraAngleV = 0.85;        // 仰角（ラジアン）
-    this.cameraRadius = 32.0;        // カメラ距離
+    // カメラ回転パラメータ
+    this.cameraAngleH = Math.PI / 4;
+    this.cameraAngleV = 0.85;
+    this.cameraRadius = 32.0;
     this.isRotatingCamera = false;
     this.pointerStartPos = { x: 0, y: 0 };
     this.hasMovedPointer = false;
@@ -74,12 +74,12 @@ class OfficeSimApp {
     this.floorPlane.receiveShadow = true;
     this.scene.add(this.floorPlane);
 
-    // 50cm サブグリッド描画
+    // 50cm サブグリッド
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
-    // 5m メインガイドライン描画
+    // 5m メインガイドライン
     this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
@@ -97,12 +97,10 @@ class OfficeSimApp {
     this.animate();
   }
 
-  // --- 自由回転対応カメラ計算 ---
   updateCamera(targetX, targetZ) {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
 
-    // 球面座標からカメラのXYZを算出
     const cx = validX + this.cameraRadius * Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV);
     const cy = this.cameraRadius * Math.sin(this.cameraAngleV);
     const cz = validZ + this.cameraRadius * Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV);
@@ -248,7 +246,6 @@ class OfficeSimApp {
 
   spawnFurnitureInFrontOfPlayer(type, extraData = {}) {
     const fwd = this.player.getForwardVector();
-    // 10cm単位スナップ
     let snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let isUnderDesk = false;
@@ -441,7 +438,6 @@ class OfficeSimApp {
       }
     });
 
-    // --- マウス・タッチ操作（カメラドラッグ回転 ＆ オブジェクトクリック ＆ 家具ドラッグ） ---
     const dom = this.renderer.domElement;
 
     dom.addEventListener('pointerdown', e => {
@@ -461,7 +457,6 @@ class OfficeSimApp {
           this.isDragging = true;
         }
       } else {
-        // 通常モード: 画面ドラッグによるカメラ回転を開始
         this.isRotatingCamera = true;
       }
     });
@@ -473,7 +468,7 @@ class OfficeSimApp {
         this.hasMovedPointer = true;
       }
 
-      // 1. 家具配置ドラッグ移動（10cm精密スナップ、Shift押下で完全フリー）
+      // 家具配置ドラッグ移動 (10cm精密スナップ、Shift押下でフリー)
       if (this.isEditMode && this.isDragging && this.selectedObject) {
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -483,7 +478,6 @@ class OfficeSimApp {
           const p = hits[0].point;
           const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
 
-          // Shiftキーを押している間はスナップ解除（完全フリー移動）
           const snapStep = e.shiftKey ? 0.01 : (CONFIG.GRID_SIZE || 0.1);
           const snapX = Math.max(-max, Math.min(max, Math.round(p.x / snapStep) * snapStep));
           const snapZ = Math.max(-max, Math.min(max, Math.round(p.z / snapStep) * snapStep));
@@ -496,31 +490,28 @@ class OfficeSimApp {
         return;
       }
 
-      // 2. カメラドラッグ回転（通常モード）
+      // カメラドラッグ回転
       if (this.isRotatingCamera) {
         const rotSpeed = 0.006;
         this.cameraAngleH -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
         this.cameraAngleV += (e.clientY - this.pointerStartPos.y) * rotSpeed;
 
-        // 仰角のリミット（真上・地面下への潜り込み防止）
         this.cameraAngleV = Math.max(0.2, Math.min(Math.PI / 2.1, this.cameraAngleV));
-
         this.pointerStartPos = { x: e.clientX, y: e.clientY };
       }
     });
 
-    window.addEventListener('pointerup', e => {
-      // クリック判定（移動していないタップ操作）
+    window.addEventListener('pointerup', () => {
+      // クリック判定（移動なしタップ時）
       if (!this.hasMovedPointer && !this.isEditMode) {
-        this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        this.mouse.x = (this.pointerStartPos.x / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(this.pointerStartPos.y / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const hits = this.raycaster.intersectObjects(this.floorObjects, true);
 
         if (hits.length > 0) {
           let root = hits[0].object;
           while (root.parent && root.parent !== this.scene) root = root.parent;
-          // ワンクリックで即座に詳細ポップアップを起動！
           this.handleTriggerObject(root);
         }
       }
@@ -901,12 +892,12 @@ class OfficeSimApp {
     let rows = await this.sheetService.fetchWorkflows();
     if (!rows || rows.length === 0) {
       rows = [
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },[cite: 3, 4]
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },[cite: 3]
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },[cite: 3]
-        { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },[cite: 3]
-        { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },[cite: 3]
-        { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }[cite: 3]
+        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },
+        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },
+        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },
+        { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },
+        { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },
+        { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }
       ];
     }
 
@@ -1057,11 +1048,9 @@ class OfficeSimApp {
 
     const hit = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
 
-    // 現在のカメラアングルを維持しながらプレイヤーに追従
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    // 押し当て判定 (1.2秒)
     if (!this.isModalActive && hit) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
