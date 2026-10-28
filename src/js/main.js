@@ -652,12 +652,12 @@ class OfficeSimApp {
     const data = obj.userData;
 
     if (data.isStairsUp) {
-      if (this.currentFloor < CONFIG.FLOORS.length) this.changeFloor(this.currentFloor + 1, 'stairs_up');
+      if (this.currentFloor < CONFIG.FLOORS.length) this.triggerFloorTransition(this.currentFloor + 1, "stairs_up", obj);
       else alert('最上階のためこれ以上上がれません。');
       return;
     }
     if (data.isStairsDown) {
-      if (this.currentFloor > 1) this.changeFloor(this.currentFloor - 1, 'stairs_down');
+      if (this.currentFloor > 1) this.triggerFloorTransition(this.currentFloor - 1, "stairs_down", obj);
       else alert('1階のためこれ以上下りられません。');
       return;
     }
@@ -1073,23 +1073,93 @@ class OfficeSimApp {
     this.showModal('🛗 エレベーター操作盤', buttonsHtml);
     document.querySelectorAll('.btn-elv-floor').forEach(btn => {
       btn.addEventListener('click', e => {
-        this.changeFloor(parseInt(e.currentTarget.getAttribute('data-floor'), 10), 'elevator');
+        const elvObj = this.floorObjects.find(o => o.userData.isElevator);
+        this.triggerFloorTransition(parseInt(e.currentTarget.getAttribute('data-floor'), 10), 'elevator', elvObj);
       });
     });
   }
 
-  changeFloor(targetFloor, arrivalType) {
+    // キャラクター中心のアイリス暗転トランジション
+  async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
     this.closeModal();
+
+    const iris = document.getElementById('iris-overlay');
+
+    // 1. インタラクションモーション（エレベーター入室 or 階段昇降）
+    if (interactObj && interactObj.userData.isElevator) {
+      // 扉が左右に開く
+      const doorL = interactObj.userData.doorL;
+      const doorR = interactObj.userData.doorR;
+      if (doorL && doorR) {
+        for (let t = 0; t <= 15; t++) {
+          doorL.position.x = -0.35 - (t / 15) * 0.45;
+          doorR.position.x = 0.35 + (t / 15) * 0.45;
+          await new Promise(r => setTimeout(r, 20));
+        }
+      }
+      // プレイヤーが扉の中へ入る
+      const startZ = this.player.position.z;
+      for (let t = 0; t <= 20; t++) {
+        this.player.position.z = startZ - (t / 20) * 1.0;
+        this.player.position.y = (t % 4 < 2) ? 0.05 : 0;
+        await new Promise(r => setTimeout(r, 25));
+      }
+    } else if (interactObj && (interactObj.userData.isStairsDown || interactObj.userData.isStairsUp)) {
+      // 階段を登る・下りるモーション
+      const isDown = interactObj.userData.isStairsDown;
+      const startZ = this.player.position.z;
+      for (let t = 0; t <= 25; t++) {
+        this.player.position.z = startZ - (t / 25) * 1.2;
+        this.player.position.y += isDown ? -0.025 : 0.035;
+        await new Promise(r => setTimeout(r, 25));
+      }
+    }
+
+    // 2. プレイヤーの画面座標を計算して中心とする円形暗転（アイリスアウト）
+    if (iris) {
+      const p = this.player.position.clone();
+      p.y += 0.8;
+      p.project(this.camera);
+      const screenX = (p.x * 0.5 + 0.5) * window.innerWidth;
+      const screenY = (-(p.y * 0.5) + 0.5) * window.innerHeight;
+
+      iris.style.display = 'block';
+      iris.style.opacity = '1';
+      iris.style.clipPath = \circle(150% at \px \px)\;
+      // 次のフレームで円を収縮
+      requestAnimationFrame(() => {
+        iris.style.clipPath = \circle(0% at \px \px)\;
+      });
+      await new Promise(r => setTimeout(r, 800));
+    }
+
+    // 3. フロア切り替えと着地
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
 
-    this.loadFloor(targetFloor);
+    await this.loadFloor(targetFloor);
 
     if (arrivalType === 'stairs_up') this.player.position.set(12, 0, -14);
     else if (arrivalType === 'stairs_down') this.player.position.set(16, 0, -14);
     else if (arrivalType === 'elevator') this.player.position.set(-14, 0, -14);
     else this.player.position.set(0, 0, 0);
+
+    this.player.position.y = 0; // 高さをリセット
+    this.updateCamera(this.player.position.x, this.player.position.z);
+
+    // 4. ジワリと全体が明転（フェードアウト）
+    if (iris) {
+      iris.style.transition = 'opacity 0.65s ease';
+      iris.style.opacity = '0';
+      await new Promise(r => setTimeout(r, 700));
+      iris.style.display = 'none';
+      iris.style.transition = 'clip-path 0.75s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease';
+    }
+
+    this.isTransitioning = false;
   }
 
   showModal(title, body) {
@@ -1156,4 +1226,5 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 

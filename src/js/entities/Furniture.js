@@ -19,7 +19,7 @@ export class FurnitureFactory {
     if (type === 'table_low_reception') return { w: 1.2, d: 0.6 };
     if (type === 'printer_floor' || type === 'printer') return { w: 0.9, d: 0.8 };
     if (type === 'elevator') return { w: 2.2, d: 1.6 };
-    if (type.includes('stairs')) return { w: 1.5, d: 1.75 };
+    if (type.includes('stairs')) return { w: 1.6, d: 2.0 };
     return { w: 0.8, d: 0.8 };
   }
 
@@ -83,9 +83,9 @@ export class FurnitureFactory {
         mesh = this.buildDeskPrinter(group.userData, data.isUnderDesk); break;
       case 'phone': mesh = this.buildPhone(); break;
       case 'board': mesh = this.buildBoard(group); break;
-      case 'elevator': mesh = this.buildElevator(); break;
-      case 'stairs_up': mesh = this.buildStairsMesh(0x22c55e, 'UP'); break;
-      case 'stairs_down': mesh = this.buildStairsMesh(0xf97316, 'DN'); break;
+      case 'elevator': mesh = this.buildElevator(group); break;
+      case 'stairs_up': mesh = this.buildStairsUp(); break;
+      case 'stairs_down': mesh = this.buildStairsDown(); break;
       default: mesh = this.buildBox(); break;
     }
     group.add(mesh);
@@ -286,44 +286,98 @@ export class FurnitureFactory {
     return group;
   }
 
-  static buildElevator() {
+  static buildElevator(parentGroup) {
     const group = new THREE.Group();
-    const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 1.6), new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.4, metalness: 0.3 }));
+    // 躯体
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 1.6), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.3 }));
     shaft.position.y = 1.6; group.add(shaft);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 0.06), new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 }));
-    door.position.set(0, 1.2, 0.82); group.add(door);
-    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.4, 0.08), new THREE.MeshBasicMaterial({ color: 0x263238 }));
-    slit.position.set(0, 1.2, 0.83); group.add(slit);
+
+    // 内部空洞
+    const interior = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.4, 1.3), new THREE.MeshBasicMaterial({ color: 0x1e293b }));
+    interior.position.set(0, 1.2, 0.1); group.add(interior);
+
+    // 左右にスライド開閉するドア
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 });
+    const doorL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.38, 0.05), doorMat);
+    doorL.position.set(-0.35, 1.2, 0.8); group.add(doorL);
+
+    const doorR = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.38, 0.05), doorMat);
+    doorR.position.set(0.35, 1.2, 0.8); group.add(doorR);
+
+    parentGroup.userData.doorL = doorL;
+    parentGroup.userData.doorR = doorR;
+
     const ind = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.25, 0.08), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
     ind.position.set(0, 2.65, 0.83); group.add(ind);
     return group;
   }
 
-  static buildStairsMesh(signColor, text) {
+  // 上り階段（地上から上空へ登る）
+  static buildStairsUp() {
     const group = new THREE.Group();
-    const steps = 5, stepDepth = 0.35, stepHeight = 0.24, width = 1.5;
+    const steps = 6, stepDepth = 0.32, stepHeight = 0.22, width = 1.5;
     const stairMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
 
     for (let i = 0; i < steps; i++) {
       const h = (i + 1) * stepHeight;
       const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, h, stepDepth), stairMat);
-      stepMesh.position.set(0, h / 2, -0.7 + (i * stepDepth));
+      stepMesh.position.set(0, h / 2, -0.8 + (i * stepDepth));
       group.add(stepMesh);
     }
 
-    const railMat = new THREE.MeshStandardMaterial({ color: signColor, roughness: 0.3, metalness: 0.5 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.3, metalness: 0.5 });
     [-0.75, 0.75].forEach(x => {
       const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4), railMat);
-      p1.position.set(x, 1.2, 0.6); group.add(p1);
+      p1.position.set(x, 1.2, 0.7); group.add(p1);
       const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4), railMat);
-      p2.position.set(x, 0.6, -0.6); group.add(p2);
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1.85), railMat);
-      bar.rotation.x = Math.PI / 6.2;
-      bar.position.set(x, 1.28, 0); group.add(bar);
+      p2.position.set(x, 0.5, -0.8); group.add(p2);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 2.0), railMat);
+      bar.rotation.x = Math.PI / 6.0;
+      bar.position.set(x, 1.25, 0); group.add(bar);
     });
 
-    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.35, 0.08), new THREE.MeshBasicMaterial({ color: signColor }));
-    sign.position.set(0, 2.2, 0); group.add(sign);
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.35, 0.08), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
+    sign.position.set(0, 2.2, 0.2); group.add(sign);
+    return group;
+  }
+
+  // ★ 下り階段（床をくり抜き、地下へめり込んで下に向かう構造）
+  static buildStairsDown() {
+    const group = new THREE.Group();
+    const steps = 6, stepDepth = 0.32, stepHeight = 0.22, width = 1.4;
+    const stairMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 });
+
+    // 1. 地下へと掘り下げられた暗い空間（ウェルボックス）
+    const pitGeo = new THREE.BoxGeometry(width + 0.1, 1.6, steps * stepDepth + 0.2);
+    const pitMat = new THREE.MeshBasicMaterial({ color: 0x0f172a }); // 暗い影色
+    const pitMesh = new THREE.Mesh(pitGeo, pitMat);
+    pitMesh.position.set(0, -0.8, 0);
+    group.add(pitMesh);
+
+    // 2. 地下へ下っていく段差（Y座標がマイナス側へ段階的に沈み込む）
+    for (let i = 0; i < steps; i++) {
+      const depthY = (i + 1) * stepHeight;
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.22, stepDepth), stairMat);
+      // 手前から奥（-Z）に向かって地下深くへめり込む
+      stepMesh.position.set(0, -depthY + 0.11, 0.8 - (i * stepDepth));
+      group.add(stepMesh);
+    }
+
+    // 3. 床の開口部を取り囲む安全ガードフェンス・手すり（地上に出る部分）
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3, metalness: 0.5 });
+    
+    // 左右と奥の手すり
+    [-0.75, 0.75].forEach(x => {
+      const fence = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.9, steps * stepDepth), railMat);
+      fence.position.set(x, 0.45, 0); group.add(fence);
+    });
+    const backFence = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 0.9, 0.04), railMat);
+    backFence.position.set(0, 0.45, -0.8 - (stepDepth / 2)); group.add(backFence);
+
+    // 看板（DOWN）
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.35, 0.08), new THREE.MeshBasicMaterial({ color: 0xf97316 }));
+    sign.position.set(0, 1.2, 0.9); group.add(sign);
+
     return group;
   }
 
