@@ -179,20 +179,55 @@
     </div>
 
     <!-- 家具パレット -->
-    <div id="furniture-palette">
-      <button class="palette-btn" data-type="desk">+ 机</button>
-      <button class="palette-btn" data-type="chair">+ 椅子</button>
-      <button class="palette-btn" data-type="partition">+ 衝立</button>
-      <button class="palette-btn" data-type="printer_desk" style="background: #fdf4ff; color: #a21caf;">+ 卓上プリンター</button>
-      <button class="palette-btn" data-type="printer_floor" style="background: #eef2ff; color: #3730a3;">+ 床置複合機</button>
-      <button class="palette-btn" data-type="locker">+ ロッカー</button>
-      <button class="palette-btn" data-type="phone">+ 内線電話</button>
-      <button class="palette-btn" data-type="board">+ 掲示板</button>
-      <button class="palette-btn" data-type="elevator" style="background: #e0f2f1; color: #00796b;">+ エレベーター</button>
-      <button class="palette-btn" data-type="stairs_up" style="background: #dcfce7; color: #15803d;">+ 上り階段 (1.5m)</button>
-      <button class="palette-btn" data-type="stairs_down" style="background: #ffedd5; color: #c2410c;">+ 下り階段 (1.5m)</button>
-      <button class="palette-btn cancel" id="btn-palette-close">閉じる</button>
+    <!-- カルーセルスライド式 家具選択パレット -->
+  <div id="furniture-carousel-modal" style="
+    position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%);
+    display: none; flex-direction: column; align-items: center;
+    background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
+    border: 1.5px solid rgba(255, 255, 255, 0.2); border-radius: 20px;
+    padding: 12px 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+    z-index: 25; pointer-events: auto; width: 280px; text-align: center; color: #fff;
+  ">
+    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 6px;">
+      <span id="palette-item-cat" style="font-size: 11px; color: #38bdf8; font-weight: bold;">[机]</span>
+      <span id="palette-item-index" style="font-size: 11px; color: #94a3b8;">1 / 16</span>
+      <button id="btn-carousel-close" style="background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer;">✕</button>
     </div>
+
+    <!-- 左右矢印と中央プレビューキャンバス -->
+    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 4px 0;">
+      <button id="btn-palette-prev" style="
+        background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
+        width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      ">〈</button>
+
+      <div style="width: 170px; height: 140px; display: flex; align-items: center; justify-content: center; position: relative;">
+        <canvas id="palette-preview-canvas" width="180" height="180" style="width: 140px; height: 140px;"></canvas>
+      </div>
+
+      <button id="btn-palette-next" style="
+        background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
+        width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      ">〉</button>
+    </div>
+
+    <div id="palette-item-name" style="font-size: 13px; font-weight: bold; margin: 4px 0 8px; color: #f8fafc;">標準デスク (150×80)</div>
+
+    <!-- 可変棚用コントロール (棚選択時のみ表示) -->
+    <div id="shelf-dimension-controls" style="display: none; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 6px; width: 100%; margin-bottom: 8px; font-size: 11px; box-sizing: border-box;">
+      <div style="margin-bottom: 4px; color: #fde047; font-weight: bold;">棚サイズ指定 (m)</div>
+      <div style="display: flex; gap: 4px;">
+        <input type="number" id="shelf-inp-w" value="1.2" step="0.1" title="幅" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+        <input type="number" id="shelf-inp-d" value="0.45" step="0.05" title="奥行" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+        <input type="number" id="shelf-inp-h" value="1.8" step="0.1" title="高さ" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+      </div>
+    </div>
+
+    <button id="btn-palette-place" style="
+      width: 100%; padding: 8px 0; background: #2563eb; color: #fff; font-size: 13px;
+      font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+    ">＋ この家具を配置</button>
+  </div>
 
     <div id="joystick-zone"><div id="joystick-knob"></div></div>
 

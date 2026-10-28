@@ -188,28 +188,65 @@ class OfficeSimApp {
     });
   }
 
-  spawnFurnitureInFrontOfPlayer(type) {
+  // src/js/main.js の spawnFurnitureInFrontOfPlayer を拡張
+  spawnFurnitureInFrontOfPlayer(type, extraData = {}) {
     const fwd = this.player.getForwardVector();
     let snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let isUnderDesk = false;
 
     if (type === 'printer_desk') {
-      const nearbyDesk = this.floorObjects.find(o => o.userData.type === 'desk' && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 1.2);
+      const nearbyDesk = this.floorObjects.find(o => o.userData.type.includes('desk') && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 1.2);
       if (nearbyDesk) {
         snapX = nearbyDesk.position.x;
         snapZ = nearbyDesk.position.z;
         const existingPrinter = this.floorObjects.find(o => o.userData.type === 'printer_desk' && Math.hypot(o.position.x - snapX, o.position.z - snapZ) < 0.3);
-        if (existingPrinter) {
-          isUnderDesk = true;
-        }
+        if (existingPrinter) isUnderDesk = true;
       }
     }
 
-    const newObj = FurnitureFactory.create(type, { x: snapX, z: snapZ, rotation: 0, isUnderDesk });
+    const newObj = FurnitureFactory.create(type, {
+      x: snapX,
+      z: snapZ,
+      rotation: 0,
+      isUnderDesk,
+      ...extraData
+    });
+
     this.scene.add(newObj);
     this.floorObjects.push(newObj);
     this.selectFurniture(newObj);
+  }
+
+  // 棚などの寸法変更時にメッシュをその場で再構築する
+  rebuildFurnitureMesh(obj) {
+    const d = obj.userData;
+    const oldRot = obj.rotation.y;
+    const oldPos = obj.position.clone();
+
+    // 既存子メッシュを破棄
+    while (obj.children.length > 0) {
+      const c = obj.children[0];
+      obj.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) {
+        if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+        else c.material.dispose();
+      }
+    }
+
+    const tempNew = FurnitureFactory.create(d.type, {
+      x: oldPos.x,
+      z: oldPos.z,
+      rotation: oldRot,
+      ...d
+    });
+
+    while (tempNew.children.length > 0) {
+      obj.add(tempNew.children[0]);
+    }
+    obj.userData = tempNew.userData;
+    if (this.boxHelper) this.boxHelper.update();
   }
 
   selectFurniture(obj) {
@@ -298,13 +335,22 @@ class OfficeSimApp {
     document.getElementById('btn-dictionary')?.addEventListener('click', () => this.openDictionaryModal());
     document.getElementById('btn-workflow')?.addEventListener('click', () => this.openWorkflowsTableModal());
 
+    // setupEvents 内の editBtn リスナー
     const editBtn = document.getElementById('btn-edit-mode');
-    const palette = document.getElementById('furniture-palette');
+    const carouselModal = document.getElementById('furniture-carousel-modal');
+
     editBtn?.addEventListener('click', () => {
       this.isEditMode = !this.isEditMode;
       editBtn.classList.toggle('active', this.isEditMode);
       editBtn.innerText = this.isEditMode ? "保存して終了" : "家具配置";
-      palette.classList.toggle('active', this.isEditMode);
+
+      if (carouselModal) {
+        carouselModal.style.display = this.isEditMode ? 'flex' : 'none';
+        carouselModal.classList.toggle('active', this.isEditMode);
+        if (this.isEditMode) {
+          this.editor.updatePreviewModel();
+        }
+      }
 
       if (!this.isEditMode) {
         this.syncCurrentLayoutToSheet();
@@ -315,6 +361,13 @@ class OfficeSimApp {
         this.selectedObject = null;
         this.editor.showActionBar(false);
         this.editor.showSnapGuide(0, 0, false);
+      }
+    });
+
+    document.getElementById('btn-carousel-close')?.addEventListener('click', () => {
+      if (carouselModal) {
+        carouselModal.style.display = 'none';
+        carouselModal.classList.remove('active');
       }
     });
 
