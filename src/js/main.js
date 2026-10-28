@@ -10,9 +10,9 @@ import { FurnitureEditor } from './ui/FurnitureEditor.js';
 
 class OfficeSimApp {
   constructor() {
-    this.currentFloor = 6; // デフォルト階を6Fに設定
-    this.mySeatFloor = 6;  // 自席が存在する階
-    this.mySeatPos = { x: -4, z: -4 }; // 自席の初期座標
+    this.currentFloor = 6;
+    this.mySeatFloor = 6;
+    this.mySeatPos = { x: -4, z: -4 };
 
     this.floorObjects = [];
     this.npcObjects = [];
@@ -20,6 +20,14 @@ class OfficeSimApp {
     this.selectedObject = null;
     this.isDragging = false;
     this.boxHelper = null;
+
+    // --- 視点（カメラ回転）用パラメータ ---
+    this.cameraAngleH = Math.PI / 4; // 水平角度（初期45度）
+    this.cameraAngleV = 0.85;        // 仰角（ラジアン）
+    this.cameraRadius = 32.0;        // カメラ距離
+    this.isRotatingCamera = false;
+    this.pointerStartPos = { x: 0, y: 0 };
+    this.hasMovedPointer = false;
 
     this.inputVector = { x: 0, y: 0 };
     this.keys = {};
@@ -59,7 +67,6 @@ class OfficeSimApp {
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
-    // 80m四方フロア平面
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
@@ -67,19 +74,17 @@ class OfficeSimApp {
     this.floorPlane.receiveShadow = true;
     this.scene.add(this.floorPlane);
 
-    // --- 床グリッド多層描画 ---
-    // 1. 50cm サブグリッド (極薄グレー)
+    // 50cm サブグリッド描画
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
-    // 2. 5m メインガイドライン (薄いブルーグレー)
+    // 5m メインガイドライン描画
     this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
 
     this.player = new Player(this.scene);
-    // 初期プレイヤー位置を自席の手前（作業位置）に設定
     this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 0.8);
 
     this.sheetService = new SheetService(CONFIG.GAS_API_URL);
@@ -92,14 +97,18 @@ class OfficeSimApp {
     this.animate();
   }
 
+  // --- 自由回転対応カメラ計算 ---
   updateCamera(targetX, targetZ) {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
-    const dist = CONFIG.CAMERA_DISTANCE || 22;
-    const elev = CONFIG.CAMERA_ELEVATION || 26;
 
-    this.camera.position.set(validX + dist, elev, validZ + dist);
-    this.camera.lookAt(validX, 0, validZ);
+    // 球面座標からカメラのXYZを算出
+    const cx = validX + this.cameraRadius * Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV);
+    const cy = this.cameraRadius * Math.sin(this.cameraAngleV);
+    const cz = validZ + this.cameraRadius * Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV);
+
+    this.camera.position.set(cx, cy, cz);
+    this.camera.lookAt(validX, 0.7, validZ);
   }
 
   checkCollision(x, z) {
@@ -138,14 +147,12 @@ class OfficeSimApp {
       this.scene.add(furniture);
       this.floorObjects.push(furniture);
 
-      // 自席デスクの位置を同期記録
       if (furniture.userData.isMySeat) {
         this.mySeatFloor = floorId;
         this.mySeatPos = { x: furniture.position.x, z: furniture.position.z };
       }
     });
 
-    // 80mフロアに合わせたエレベーター・上り階段・下り階段
     if (!this.floorObjects.some(o => o.userData.isElevator)) {
       const elv = FurnitureFactory.create('elevator', { x: -14, z: -16, rotation: 0, role: 'エレベーター' });
       this.scene.add(elv); this.floorObjects.push(elv);
@@ -163,24 +170,20 @@ class OfficeSimApp {
     this.refreshNPCs();
   }
 
-  // 6F（自席階）などの初期レイアウトプリセット
   getDefaultLayoutForFloor(floorId) {
     if (floorId === 6) {
       return [
-        // 自席（6F設置）
         { type: 'desk_150_80', x: -4, z: -4, rotation: 0, role: '自席', person: '自分', isMySeat: true, shiftWeekday: '09:00-18:00', extensionNumber: '6101' },
         { type: 'chair', x: -4, z: -3.2, rotation: 0 },
         { type: 'phone', x: -4.6, z: -4, rotation: 0, role: '内線電話', extensionNumber: '6101' },
         { type: 'printer_desk', x: -4, z: -4, rotation: 0, role: '自席プリンター', modelNumber: 'CANON LBP621C', tonerType: 'CRG-054H' },
         { type: 'board', x: -2.8, z: -4.6, rotation: 0, role: '業務連絡掲示板' },
 
-        // 同僚・デスク
         { type: 'desk_150_80', x: 2, z: -4, rotation: 0, role: 'ニュースセンター長', person: '佐藤 センター長', distNeeded: 'dist_01', shiftWeekday: '09:00-17:00', extensionNumber: '6102' },
         { type: 'chair', x: 2, z: -3.2, rotation: 0 },
         { type: 'desk_150_80', x: 6, z: -4, rotation: 0, role: '編制デスク', person: '鈴木 主任', distNeeded: 'dist_04', shiftWeekday: '15:00-24:00', extensionNumber: '6103' },
         { type: 'chair', x: 6, z: -3.2, rotation: 0 },
 
-        // 設備・応接
         { type: 'printer_floor', x: 12, z: 2, rotation: 0, role: '6Fフロア複合機', modelNumber: 'ApeosPort-VII C3373', tonerType: 'CT203138' },
         { type: 'sofa_reception', x: -8, z: 6, rotation: 0, role: '打合せソファ' },
         { type: 'table_low_reception', x: -8, z: 7.2, rotation: 0, role: '応接ローテーブル' },
@@ -195,7 +198,6 @@ class OfficeSimApp {
     ];
   }
 
-  // --- 自席へ戻る（ワープ機能） ---
   returnToMySeat() {
     this.closeModal();
     if (this.currentFloor !== this.mySeatFloor) {
@@ -204,9 +206,8 @@ class OfficeSimApp {
       if (select) select.value = String(this.mySeatFloor);
       this.loadFloor(this.mySeatFloor);
     }
-    // 自席デスクの手前（作業席）に着地
     this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 0.8);
-    this.player.targetRotation = Math.PI; // デスク側（正面）を向く
+    this.player.targetRotation = Math.PI;
     this.updateCamera(this.player.position.x, this.player.position.z);
   }
 
@@ -247,6 +248,7 @@ class OfficeSimApp {
 
   spawnFurnitureInFrontOfPlayer(type, extraData = {}) {
     const fwd = this.player.getForwardVector();
+    // 10cm単位スナップ
     let snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let snapZ = Math.round((this.player.position.z + fwd.z * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
     let isUnderDesk = false;
@@ -389,7 +391,6 @@ class OfficeSimApp {
       }
     });
 
-    // 右上機能 1: アカウント管理
     document.getElementById('btn-account-manage')?.addEventListener('click', () => {
       if (!this.currentUser) return;
       this.showModal("👤 アカウント管理情報", `
@@ -402,12 +403,10 @@ class OfficeSimApp {
       `);
     });
 
-    // 右上機能 3: 自席へ戻る
     document.getElementById('btn-return-myseat')?.addEventListener('click', () => {
       this.returnToMySeat();
     });
 
-    // 右上機能 4: レイアウト（家具配置）
     const editBtn = document.getElementById('btn-edit-mode');
     const carouselModal = document.getElementById('furniture-carousel-modal');
     editBtn?.addEventListener('click', () => {
@@ -442,43 +441,92 @@ class OfficeSimApp {
       }
     });
 
-    // ドラッグ移動
+    // --- マウス・タッチ操作（カメラドラッグ回転 ＆ オブジェクトクリック ＆ 家具ドラッグ） ---
     const dom = this.renderer.domElement;
+
     dom.addEventListener('pointerdown', e => {
-      if (!this.isEditMode) return;
+      this.pointerStartPos = { x: e.clientX, y: e.clientY };
+      this.hasMovedPointer = false;
+
       this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      const hits = this.raycaster.intersectObjects(this.floorObjects, true);
-      if (hits.length > 0) {
-        let root = hits[0].object;
-        while (root.parent && root.parent !== this.scene) root = root.parent;
-        this.selectFurniture(root);
-        this.isDragging = true;
+
+      if (this.isEditMode) {
+        const hits = this.raycaster.intersectObjects(this.floorObjects, true);
+        if (hits.length > 0) {
+          let root = hits[0].object;
+          while (root.parent && root.parent !== this.scene) root = root.parent;
+          this.selectFurniture(root);
+          this.isDragging = true;
+        }
+      } else {
+        // 通常モード: 画面ドラッグによるカメラ回転を開始
+        this.isRotatingCamera = true;
       }
     });
 
     window.addEventListener('pointermove', e => {
-      if (!this.isEditMode || !this.isDragging || !this.selectedObject) return;
-      this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-      this.raycaster.setFromCamera(this.mouse, this.camera);
-      const hits = this.raycaster.intersectObject(this.floorPlane);
-      if (hits.length > 0) {
-        const p = hits[0].point;
-        const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
-        const snapX = Math.max(-max, Math.min(max, Math.round(p.x / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE));
-        const snapZ = Math.max(-max, Math.min(max, Math.round(p.z / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE));
+      const dx = e.clientX - this.pointerStartPos.x;
+      const dy = e.clientY - this.pointerStartPos.y;
+      if (Math.hypot(dx, dy) > 5) {
+        this.hasMovedPointer = true;
+      }
 
-        this.selectedObject.position.x = snapX;
-        this.selectedObject.position.z = snapZ;
-        if (this.boxHelper) this.boxHelper.update();
-        this.editor.showSnapGuide(snapX, snapZ, true);
+      // 1. 家具配置ドラッグ移動（10cm精密スナップ、Shift押下で完全フリー）
+      if (this.isEditMode && this.isDragging && this.selectedObject) {
+        this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const hits = this.raycaster.intersectObject(this.floorPlane);
+        if (hits.length > 0) {
+          const p = hits[0].point;
+          const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
+
+          // Shiftキーを押している間はスナップ解除（完全フリー移動）
+          const snapStep = e.shiftKey ? 0.01 : (CONFIG.GRID_SIZE || 0.1);
+          const snapX = Math.max(-max, Math.min(max, Math.round(p.x / snapStep) * snapStep));
+          const snapZ = Math.max(-max, Math.min(max, Math.round(p.z / snapStep) * snapStep));
+
+          this.selectedObject.position.x = snapX;
+          this.selectedObject.position.z = snapZ;
+          if (this.boxHelper) this.boxHelper.update();
+          this.editor.showSnapGuide(snapX, snapZ, true);
+        }
+        return;
+      }
+
+      // 2. カメラドラッグ回転（通常モード）
+      if (this.isRotatingCamera) {
+        const rotSpeed = 0.006;
+        this.cameraAngleH -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
+        this.cameraAngleV += (e.clientY - this.pointerStartPos.y) * rotSpeed;
+
+        // 仰角のリミット（真上・地面下への潜り込み防止）
+        this.cameraAngleV = Math.max(0.2, Math.min(Math.PI / 2.1, this.cameraAngleV));
+
+        this.pointerStartPos = { x: e.clientX, y: e.clientY };
       }
     });
 
-    window.addEventListener('pointerup', () => {
+    window.addEventListener('pointerup', e => {
+      // クリック判定（移動していないタップ操作）
+      if (!this.hasMovedPointer && !this.isEditMode) {
+        this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const hits = this.raycaster.intersectObjects(this.floorObjects, true);
+
+        if (hits.length > 0) {
+          let root = hits[0].object;
+          while (root.parent && root.parent !== this.scene) root = root.parent;
+          // ワンクリックで即座に詳細ポップアップを起動！
+          this.handleTriggerObject(root);
+        }
+      }
+
       this.isDragging = false;
+      this.isRotatingCamera = false;
       this.editor.showSnapGuide(0, 0, false);
     });
 
@@ -524,6 +572,7 @@ class OfficeSimApp {
 
     window.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
+        this.isRotatingCamera = false;
         initialPinchDistance = getTouchDist(e.touches[0], e.touches[1]);
         initialZoom = this.camera.zoom;
       }
@@ -567,7 +616,6 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
-  // --- 接触判定 & 自席ポータル総合メニュー ---
   handleTriggerObject(obj) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
@@ -575,7 +623,6 @@ class OfficeSimApp {
     }
     const data = obj.userData;
 
-    // 階段即時移動
     if (data.isStairsUp) {
       if (this.currentFloor < CONFIG.FLOORS.length) this.changeFloor(this.currentFloor + 1, 'stairs_up');
       else alert("最上階のためこれ以上上がれません。");
@@ -595,13 +642,11 @@ class OfficeSimApp {
       return;
     }
 
-    // 自席接触時: 総合ポータルメニューを展開
     if (data.isMySeat) {
       this.openMySeatPortal();
       return;
     }
 
-    // 他同僚デスク接触時
     if (data.type.includes('desk')) {
       const px = obj.position.x, pz = obj.position.z;
       const nearbyPhones = this.floorObjects.filter(o => o.userData.type === 'phone' && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
@@ -631,7 +676,6 @@ class OfficeSimApp {
     this.showModal(`${data.role}`, `<strong>状況:</strong> 通常稼働中`);
   }
 
-  // --- 自席総合ポータル（業務フロー図、辞書、備品、資料配り先、履歴） ---
   openMySeatPortal() {
     const html = `
       <div style="text-align: center; margin-bottom: 14px;">
@@ -669,24 +713,13 @@ class OfficeSimApp {
 
     this.showModal("💻 自席 業務ポータルコンソール", html);
 
-    document.getElementById('portal-btn-wf')?.addEventListener('click', () => {
-      this.openWorkflowsTableModal();
-    });
-    document.getElementById('portal-btn-dict')?.addEventListener('click', () => {
-      this.openDictionaryModal();
-    });
-    document.getElementById('portal-btn-equip')?.addEventListener('click', () => {
-      this.openEquipmentModal();
-    });
-    document.getElementById('portal-btn-dist')?.addEventListener('click', () => {
-      this.openDistributionSelectModal();
-    });
-    document.getElementById('portal-btn-hist')?.addEventListener('click', () => {
-      this.openHistoryModal();
-    });
+    document.getElementById('portal-btn-wf')?.addEventListener('click', () => this.openWorkflowsTableModal());
+    document.getElementById('portal-btn-dict')?.addEventListener('click', () => this.openDictionaryModal());
+    document.getElementById('portal-btn-equip')?.addEventListener('click', () => this.openEquipmentModal());
+    document.getElementById('portal-btn-dist')?.addEventListener('click', () => this.openDistributionSelectModal());
+    document.getElementById('portal-btn-hist')?.addEventListener('click', () => this.openHistoryModal());
   }
 
-  // --- 備品管理モーダル ---
   openEquipmentModal() {
     const printers = this.floorObjects.filter(o => o.userData.type.includes('printer'));
     let html = '<div style="max-height: 280px; overflow-y: auto;">';
@@ -704,7 +737,6 @@ class OfficeSimApp {
     this.showModal("📦 現フロア 備品・消耗品管理", html);
   }
 
-  // --- 資料配り先確認（トレーニング選択） ---
   openDistributionSelectModal() {
     const tasks = [
       { id: "dist_01", title: "📰 朝刊・夕刊メモ配り (5F・6F・7F)" },
@@ -729,7 +761,6 @@ class OfficeSimApp {
     });
   }
 
-  // --- 受講・実績履歴 ---
   async openHistoryModal() {
     if (!this.currentUser) return;
     const logs = await this.sheetService.fetchTrainingLogs();
@@ -870,12 +901,12 @@ class OfficeSimApp {
     let rows = await this.sheetService.fetchWorkflows();
     if (!rows || rows.length === 0) {
       rows = [
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },
-        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },
-        { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },
-        { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },
-        { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }
+        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },[cite: 3, 4]
+        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },[cite: 3]
+        { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },[cite: 3]
+        { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },[cite: 3]
+        { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },[cite: 3]
+        { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }[cite: 3]
       ];
     }
 
@@ -1026,9 +1057,11 @@ class OfficeSimApp {
 
     const hit = this.player.update({ x: vx, y: vy }, delta, (nx, nz) => this.checkCollision(nx, nz));
 
+    // 現在のカメラアングルを維持しながらプレイヤーに追従
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
+    // 押し当て判定 (1.2秒)
     if (!this.isModalActive && hit) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
