@@ -68,6 +68,21 @@
   background: #ff9800;
 }
 
+/* バッジ（未読カウント） */
+.badge-counter {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 2px solid #fff;
+  display: none;
+}
+
 /* バーチャルジョイスティック (左下) */
 #joystick-zone {
   position: absolute;
@@ -96,44 +111,107 @@
   transition: transform 0.04s ease-out;
 }
 
-/* 右下アクションボタン群 */
-.action-controls {
+/* ミニマップコンテナ (右下) */
+#minimap-container {
   position: absolute;
-  bottom: 28px;
-  right: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  bottom: 24px;
+  right: 24px;
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border: 2px solid rgba(255, 255, 255, 0.7);
   pointer-events: auto;
 }
 
-.round-action-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
+/* --- 家具配置・エディタ関連UI --- */
+
+/* 1. カルーセル再展開用フローティング小アイコン (右上ヘッダーの少し下) */
+#btn-open-palette-fab {
+  display: none;
+  position: absolute;
+  top: 68px;
+  right: 18px;
+  background: #2563eb;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: bold;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+  cursor: pointer;
+  z-index: 30;
+  pointer-events: auto;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+#btn-open-palette-fab:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+}
+
+/* 2. カルーセルパレット（操作バーの上部に配置して重なりを回避） */
+#furniture-carousel-modal {
+  position: absolute !important;
+  bottom: 80px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 26 !important;
+  pointer-events: auto;
+}
+
+/* 3. 選択中家具のアクションバー (画面最下部に固定) */
+#furniture-action-bar {
+  position: absolute !important;
+  bottom: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: none;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 30px;
+  padding: 6px 18px;
+  gap: 12px;
+  z-index: 28;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  align-items: center;
+}
+
+#furniture-action-bar.active {
+  display: flex !important;
+}
+
+.action-bar-btn {
+  background: rgba(255, 255, 255, 0.15);
   border: none;
   color: #fff;
-  font-size: 13px;
-  font-weight: bold;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: transform 0.1s ease, filter 0.1s ease;
+  gap: 4px;
+  transition: background 0.15s ease;
 }
 
-.round-action-btn:active {
-  transform: scale(0.92);
+.action-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
-.btn-talk {
-  background: linear-gradient(135deg, #ff7043, #f4511e);
+.action-bar-btn.delete {
+  background: rgba(239, 68, 68, 0.85);
 }
 
-.btn-rotate {
-  background: linear-gradient(135deg, #ab47bc, #8e24aa);
-  display: none; /* 編集モード時のみ表示 */
+.action-bar-btn.delete:hover {
+  background: rgba(220, 38, 38, 1);
 }
 
 /* ポップアップモーダル */
@@ -148,6 +226,7 @@
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+  z-index: 40;
 }
 
 .modal-overlay.active {
@@ -159,7 +238,9 @@
   border-radius: 16px;
   padding: 24px;
   width: 90%;
-  max-width: 440px;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
   animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -170,19 +251,19 @@
 }
 
 .modal-header {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: bold;
-  color: #2c3e50;
+  color: #1e293b;
   margin-bottom: 12px;
-  border-bottom: 2px solid #eceff1;
+  border-bottom: 2px solid #e2e8f0;
   padding-bottom: 8px;
 }
 
 .modal-body {
-  font-size: 14px;
-  color: #546e7a;
+  font-size: 13px;
+  color: #334155;
   line-height: 1.6;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .modal-footer {
@@ -198,14 +279,19 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-dialog:hover {
+  opacity: 0.9;
 }
 
 .btn-close {
-  background: #cfd8dc;
-  color: #37474f;
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .btn-primary {
-  background: #1e88e5;
+  background: #2563eb;
   color: #fff;
 }

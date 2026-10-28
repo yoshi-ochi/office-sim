@@ -452,15 +452,31 @@ class OfficeSimApp {
         }
         this.selectedObject = null;
         this.editor.showActionBar(false);
-        this.editor.showSnapGuide(0, 0, false);
+        this.editor.showSnapGuide(0, 0, false); if (paletteFab) paletteFab.style.display = 'none';
       }
     });
 
+    const paletteFab = document.getElementById('btn-open-palette-fab');
+
+    // パレットの「✕」ボタンを押したとき: カルーセルを隠し、右上に小アイコンを表示
     document.getElementById('btn-carousel-close')?.addEventListener('click', () => {
       if (carouselModal) {
         carouselModal.style.display = 'none';
         carouselModal.classList.remove('active');
       }
+      if (this.isEditMode && paletteFab) {
+        paletteFab.style.display = 'flex';
+      }
+    });
+
+    // 右上の小アイコンをクリックしたとき: 小アイコンを隠し、カルーセルを再展開
+    paletteFab?.addEventListener('click', () => {
+      if (carouselModal) {
+        carouselModal.style.display = 'flex';
+        carouselModal.classList.add('active');
+        this.editor.updatePreviewModel();
+      }
+      paletteFab.style.display = 'none';
     });
 
     const dom = this.renderer.domElement;
@@ -541,7 +557,7 @@ class OfficeSimApp {
 
       this.isDragging = false;
       this.isRotatingCamera = false;
-      this.editor.showSnapGuide(0, 0, false);
+      this.editor.showSnapGuide(0, 0, false); if (paletteFab) paletteFab.style.display = 'none';
     });
 
     window.addEventListener('keydown', e => { if (e.key) this.keys[e.key.toLowerCase()] = true; });
@@ -1107,6 +1123,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
