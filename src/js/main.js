@@ -22,8 +22,8 @@ class OfficeSimApp {
     this.boxHelper = null;
 
     this.cameraAngle = Math.PI / 4;
-    this.cameraElevation = 26;
-    this.cameraDistance = 24;
+    this.isoAngleV = Math.asin(1 / Math.sqrt(3)); // 厳密なアイソメ角 (35.264度)
+    this.cameraRadius = 35.0;
     this.isRotatingCamera = false;
     this.pointerStartPos = { x: 0, y: 0 };
     this.hasMovedPointer = false;
@@ -119,9 +119,13 @@ class OfficeSimApp {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
 
-    const cx = validX + this.cameraDistance * Math.sin(this.cameraAngle);
-    const cy = this.cameraElevation;
-    const cz = validZ + this.cameraDistance * Math.cos(this.cameraAngle);
+    // 正角アイソメトリック比率の計算
+    const distH = this.cameraRadius * Math.cos(this.isoAngleV);
+    const heightY = this.cameraRadius * Math.sin(this.isoAngleV);
+
+    const cx = validX + distH * Math.sin(this.cameraAngle);
+    const cy = heightY;
+    const cz = validZ + distH * Math.cos(this.cameraAngle);
 
     this.camera.position.set(cx, cy, cz);
     this.camera.lookAt(validX, 0.7, validZ);
@@ -539,7 +543,6 @@ class OfficeSimApp {
       if (this.isRotatingCamera) {
         const rotSpeed = 0.005;
         this.cameraAngle -= (e.clientX - this.pointerStartPos.x) * rotSpeed;
-        this.cameraElevation = Math.max(16, Math.min(42, this.cameraElevation + (e.clientY - this.pointerStartPos.y) * 0.05));
         this.pointerStartPos = { x: e.clientX, y: e.clientY };
       }
     });
