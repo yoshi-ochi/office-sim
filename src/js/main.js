@@ -371,9 +371,7 @@ class OfficeSimApp {
         distNeeded: obj.userData.distNeeded || ''
       }));
       const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
-      if (res && res.status === 'success') {
-        alert(`フロア ${this.currentFloor}F のレイアウトを保存しました。`);
-      }
+      
     } finally {
       this.hideLoading();
     }
@@ -1191,3 +1189,4 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
