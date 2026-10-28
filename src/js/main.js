@@ -58,9 +58,15 @@ class OfficeSimApp {
 
   init() {
     const container = document.getElementById('canvas-container');
+    const theme = CONFIG.FLOOR_THEME || {
+      FLOOR_COLOR: 0x828890,
+      SCENE_BG: 0xb0b7be,
+      GRID_SUB: 0x6e747c,
+      GRID_MAJOR: 0x4a515a
+    };
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xd7e0e5);
+    this.scene.background = new THREE.Color(theme.SCENE_BG);
 
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
     const d = CONFIG.CAMERA_VIEW_SIZE || 15;
@@ -74,25 +80,26 @@ class OfficeSimApp {
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.55);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
     dirLight.position.set(45, 60, 45);
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    // 暗めのオフィスグレーフロア
+    // 床面メッシュの初期設定
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
-    this.floorMat = new THREE.MeshLambertMaterial({ color: 0x949ba3 });
+    this.floorMat = new THREE.MeshLambertMaterial({ color: theme.FLOOR_COLOR });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
     this.floorPlane.rotation.x = -Math.PI / 2;
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
-    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0x828992, 0xa3a9b0);
+    // サブグリッド & メジャーグリッド
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, theme.GRID_SUB, theme.GRID_SUB);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
-    this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x475569, 0x64748b);
+    this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, theme.GRID_MAJOR, theme.GRID_MAJOR);
     this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
 
@@ -163,8 +170,11 @@ class OfficeSimApp {
       }
       this.editor.showActionBar(false);
 
+      // 床色の決定順序: 各階指定色 -> 共通設定色 (FLOOR_THEME)
       const floorInfo = CONFIG.FLOORS.find(f => f.id === floorId);
-      if (floorInfo) this.floorMat.color.setHex(floorInfo.color || 0x949ba3);
+      const themeColor = (CONFIG.FLOOR_THEME && CONFIG.FLOOR_THEME.FLOOR_COLOR) ? CONFIG.FLOOR_THEME.FLOOR_COLOR : 0x828890;
+      const finalColor = (floorInfo && floorInfo.color !== undefined) ? floorInfo.color : themeColor;
+      this.floorMat.color.setHex(finalColor);
 
       let layout = await this.sheetService.fetchFloorLayout(floorId);
       if (!layout || layout.length === 0) {
@@ -376,32 +386,43 @@ class OfficeSimApp {
 
   setupEvents() {
     // 1画面一括ログイン (メール & パスワード)
-    document.getElementById('btn-login-unified')?.addEventListener('click', async () => {
-      const email = document.getElementById('login-email').value.trim();
-      const pass = document.getElementById('login-password').value;
-      if (!email || !pass) return alert("メールアドレスとパスワードの両方を入力してください。");
+    const btnLogin = document.getElementById('btn-login-unified');
+    if (btnLogin) {
+      btnLogin.addEventListener('click', async () => {
+        const emailInput = document.getElementById('login-email');
+        const passInput = document.getElementById('login-password');
+        const email = emailInput ? emailInput.value.trim() : '';
+        const pass = passInput ? passInput.value : '';
 
-      this.showLoading();
-      try {
-        const res = await this.sheetService.verifyPassword(email, pass);
-        if (res && res.status === 'success') {
-          this.currentUser = res.user;
-          document.getElementById('user-badge').innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
-          document.getElementById('login-overlay').style.display = 'none';
-          await this.loadFloor(this.currentFloor);
-        } else {
-          alert(res ? res.message : "メールアドレスまたはパスワードが正しくありません。");
+        if (!email || !pass) {
+          alert('メールアドレスとパスワードを入力してください。');
+          return;
         }
-      } catch (err) {
-        alert("通信エラーが発生しました。");
-      } finally {
-        this.hideLoading();
-      }
-    });
+
+        this.showLoading();
+        try {
+          const res = await this.sheetService.verifyPassword(email, pass);
+          if (res && res.status === 'success') {
+            this.currentUser = res.user;
+            const badge = document.getElementById('user-badge');
+            if (badge) badge.innerText = `👤 ${this.currentUser.name} (${this.currentUser.role})`;
+            const overlay = document.getElementById('login-overlay');
+            if (overlay) overlay.style.display = 'none';
+            await this.loadFloor(this.currentFloor);
+          } else {
+            alert(res && res.message ? res.message : 'メールアドレスまたはパスワードが正しくありません。');
+          }
+        } catch (err) {
+          alert('認証サーバーとの通信に失敗しました。');
+        } finally {
+          this.hideLoading();
+        }
+      });
+    }
 
     document.getElementById('btn-account-manage')?.addEventListener('click', () => {
       if (!this.currentUser) return;
-      this.showModal("👤 アカウント管理情報", `
+      this.showModal('👤 アカウント管理情報', `
         <div style="font-size: 13px; line-height: 1.6;">
           <strong>氏名:</strong> ${this.currentUser.name}<br>
           <strong>メール:</strong> ${this.currentUser.email}<br>
@@ -422,7 +443,7 @@ class OfficeSimApp {
     editBtn?.addEventListener('click', () => {
       this.isEditMode = !this.isEditMode;
       editBtn.classList.toggle('active', this.isEditMode);
-      editBtn.innerText = this.isEditMode ? "保存して終了" : "🛠️ レイアウト";
+      editBtn.innerText = this.isEditMode ? '保存して終了' : '🛠️ レイアウト';
 
       if (carouselModal) {
         carouselModal.style.display = this.isEditMode ? 'flex' : 'none';
@@ -635,12 +656,12 @@ class OfficeSimApp {
 
     if (data.isStairsUp) {
       if (this.currentFloor < CONFIG.FLOORS.length) this.changeFloor(this.currentFloor + 1, 'stairs_up');
-      else alert("最上階のためこれ以上上がれません。");
+      else alert('最上階のためこれ以上上がれません。');
       return;
     }
     if (data.isStairsDown) {
       if (this.currentFloor > 1) this.changeFloor(this.currentFloor - 1, 'stairs_down');
-      else alert("1階のためこれ以上下りられません。");
+      else alert('1階のためこれ以上下りられません。');
       return;
     }
     if (data.isElevator) {
@@ -683,7 +704,7 @@ class OfficeSimApp {
       return;
     }
 
-    this.showModal(`${data.role}`, `<strong>状況:</strong> 通常稼働中`);
+    this.showModal(`${data.role}`, '<strong>状況:</strong> 通常稼働中');
   }
 
   openMySeatPortal() {
@@ -721,7 +742,7 @@ class OfficeSimApp {
       </div>
     `;
 
-    this.showModal("💻 自席 業務ポータルコンソール", html);
+    this.showModal('💻 自席 業務ポータルコンソール', html);
 
     document.getElementById('portal-btn-wf')?.addEventListener('click', () => this.openWorkflowsTableModal());
     document.getElementById('portal-btn-dict')?.addEventListener('click', () => this.openDictionaryModal());
@@ -744,14 +765,14 @@ class OfficeSimApp {
       `;
     });
     html += '</div>';
-    this.showModal("📦 現フロア 備品・消耗品管理", html);
+    this.showModal('📦 現フロア 備品・消耗品管理', html);
   }
 
   openDistributionSelectModal() {
     const tasks = [
-      { id: "dist_01", title: "📰 朝刊・夕刊メモ配り (5F・6F・7F)" },
-      { id: "dist_02", title: "📝 朝刊あつかい・論説秘書配り" },
-      { id: "dist_04", title: "✉️ 友好社・運動メモ配り" }
+      { id: 'dist_01', title: '📰 朝刊・夕刊メモ配り (5F・6F・7F)' },
+      { id: 'dist_02', title: '📝 朝刊あつかい・論説秘書配り' },
+      { id: 'dist_04', title: '✉️ 友好社・運動メモ配り' }
     ];
     let html = '<p style="font-size: 12px; color: #64748b;">開始する配布タスクを選択してください。対象座席に赤マーカーが点灯します。</p>';
     tasks.forEach(t => {
@@ -761,7 +782,7 @@ class OfficeSimApp {
         </button>
       `;
     });
-    this.showModal("🎯 資料配り先確認・トレーニング起動", html);
+    this.showModal('🎯 資料配り先確認・トレーニング起動', html);
     document.querySelectorAll('.btn-start-dist').forEach(btn => {
       btn.addEventListener('click', e => {
         const id = e.currentTarget.getAttribute('data-id');
@@ -810,7 +831,7 @@ class OfficeSimApp {
     });
 
     if (this.activeTargets.length === 0) {
-      alert("現フロアに対象の配布先座席がありません。他フロアも確認してください。");
+      alert('現フロアに対象の配布先座席がありません。他フロアも確認してください。');
       return;
     }
     alert(`【配布トレーニング開始】\n赤ポチの座席（${this.activeTargets.length}箇所）に書類を届けてください。`);
@@ -851,7 +872,7 @@ class OfficeSimApp {
         </div>
       `;
 
-      this.showModal("📌 業務連絡掲示板", listHtml + formHtml);
+      this.showModal('📌 業務連絡掲示板', listHtml + formHtml);
 
       document.getElementById('btn-b-submit')?.addEventListener('click', async () => {
         const author = document.getElementById('b-author').value.trim() || defaultAuthor;
@@ -870,7 +891,7 @@ class OfficeSimApp {
             category: category,
             message: msg
           });
-          alert("掲示板に投稿しました！");
+          alert('掲示板に投稿しました！');
           this.closeModal();
         } finally {
           this.hideLoading();
@@ -910,13 +931,13 @@ class OfficeSimApp {
         </div>
       `;
 
-      this.showModal("📖 社内辞書・マニュアル用語", listHtml + addFormHtml);
+      this.showModal('📖 社内辞書・マニュアル用語', listHtml + addFormHtml);
 
       document.getElementById('btn-dict-add')?.addEventListener('click', async () => {
         const term = document.getElementById('dict-term').value.trim();
         const cat = document.getElementById('dict-cat').value.trim() || '社内業務';
         const content = document.getElementById('dict-content').value.trim();
-        if (!term || !content) return alert("用語名と説明を入力してください。");
+        if (!term || !content) return alert('用語名と説明を入力してください。');
 
         this.showLoading();
         try {
@@ -938,12 +959,12 @@ class OfficeSimApp {
       let rows = await this.sheetService.fetchWorkflows();
       if (!rows || rows.length === 0) {
         rows = [
-          { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊取り", position: "早番", description: "新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。", briefexplanation: "新聞室から朝刊回収・配布", weekends: "" },
-          { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊配り", position: "早番/遅番", description: "早番:5・7F、遅番:6Fへ朝刊を配達。", briefexplanation: "各階朝刊配り", weekends: "" },
-          { shift: "昼勤", timeGroup: "9:00~", time: "9:00", taskName: "朝刊あつかい配り", position: "早番", description: "論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。", briefexplanation: "論説・秘書室配り", weekends: "" },
-          { shift: "昼勤", timeGroup: "10:00~", time: "10:00", taskName: "外回り", position: "早番", description: "Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。", briefexplanation: "行政各庁・外回り便回収", weekends: "" },
-          { shift: "昼勤", timeGroup: "13:00~", time: "13:00", taskName: "紙補充", position: "早番/遅番", description: "円卓の複合機2機のA3とA4を用紙補充する。", briefexplanation: "複合機コピー用紙補充", weekends: "" },
-          { shift: "昼勤", timeGroup: "16:00~", time: "16:00", taskName: "メモ配り", position: "遅番", description: "【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。", briefexplanation: "自社・運動・友好社メモ配り", weekends: "" }
+          { shift: '昼勤', timeGroup: '9:00~', time: '9:00', taskName: '朝刊取り', position: '早番', description: '新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。', briefexplanation: '新聞室から朝刊回収・配布', weekends: '' },
+          { shift: '昼勤', timeGroup: '9:00~', time: '9:00', taskName: '朝刊配り', position: '早番/遅番', description: '早番:5・7F、遅番:6Fへ朝刊を配達。', briefexplanation: '各階朝刊配り', weekends: '' },
+          { shift: '昼勤', timeGroup: '9:00~', time: '9:00', taskName: '朝刊あつかい配り', position: '早番', description: '論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。', briefexplanation: '論説・秘書室配り', weekends: '' },
+          { shift: '昼勤', timeGroup: '10:00~', time: '10:00', taskName: '外回り', position: '早番', description: 'Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。', briefexplanation: '行政各庁・外回り便回収', weekends: '' },
+          { shift: '昼勤', timeGroup: '13:00~', time: '13:00', taskName: '紙補充', position: '早番/遅番', description: '円卓の複合機2機のA3とA4を用紙補充する。', briefexplanation: '複合機コピー用紙補充', weekends: '' },
+          { shift: '昼勤', timeGroup: '16:00~', time: '16:00', taskName: 'メモ配り', position: '遅番', description: '【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。', briefexplanation: '自社・運動・友好社メモ配り', weekends: '' }
         ];
       }
 
@@ -985,7 +1006,7 @@ class OfficeSimApp {
         </div>
       `;
 
-      this.showModal("📋 業務情報一覧・簡易マニュアル（編集対応）", modalBodyHtml);
+      this.showModal('📋 業務情報一覧・簡易マニュアル（編集対応）', modalBodyHtml);
 
       document.querySelectorAll('.btn-wf-edit-row').forEach(btn => {
         btn.addEventListener('click', e => {
@@ -1015,14 +1036,14 @@ class OfficeSimApp {
 
       document.getElementById('btn-wf-add-new')?.addEventListener('click', () => {
         rows.push({
-          shift: "昼勤",
-          timeGroup: "新規",
-          time: "10:00",
-          taskName: "新規タスク",
-          position: "早番",
-          description: "業務の詳細を入力してください。",
-          briefexplanation: "概要",
-          weekends: ""
+          shift: '昼勤',
+          timeGroup: '新規',
+          time: '10:00',
+          taskName: '新規タスク',
+          position: '早番',
+          description: '業務の詳細を入力してください。',
+          briefexplanation: '概要',
+          weekends: ''
         });
         this.openWorkflowsTableModal();
       });
@@ -1031,7 +1052,7 @@ class OfficeSimApp {
         this.showLoading();
         try {
           await this.sheetService.saveWorkflows(rows);
-          alert("業務情報一覧をスプレッドシート（Workflows）に保存しました！");
+          alert('業務情報一覧をスプレッドシート（Workflows）に保存しました！');
           this.closeModal();
         } finally {
           this.hideLoading();
@@ -1052,7 +1073,7 @@ class OfficeSimApp {
         </button>`;
     });
     buttonsHtml += '</div>';
-    this.showModal("🛗 エレベーター操作盤", buttonsHtml);
+    this.showModal('🛗 エレベーター操作盤', buttonsHtml);
     document.querySelectorAll('.btn-elv-floor').forEach(btn => {
       btn.addEventListener('click', e => {
         this.changeFloor(parseInt(e.currentTarget.getAttribute('data-floor'), 10), 'elevator');
@@ -1138,4 +1159,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
