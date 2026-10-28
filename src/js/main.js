@@ -10,7 +10,10 @@ import { FurnitureEditor } from './ui/FurnitureEditor.js';
 
 class OfficeSimApp {
   constructor() {
-    this.currentFloor = 3;
+    this.currentFloor = 6; // デフォルト階を6Fに設定
+    this.mySeatFloor = 6;  // 自席が存在する階
+    this.mySeatPos = { x: -4, z: -4 }; // 自席の初期座標
+
     this.floorObjects = [];
     this.npcObjects = [];
     this.isEditMode = false;
@@ -39,10 +42,10 @@ class OfficeSimApp {
     this.scene.background = new THREE.Color(0xd7e0e5);
 
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
-    const d = CONFIG.CAMERA_VIEW_SIZE || 12;
-    this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+    const d = CONFIG.CAMERA_VIEW_SIZE || 15;
+    this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 2000);
     this.camera.zoom = 1.0;
-    this.updateCamera(0, 0);
+    this.updateCamera(this.mySeatPos.x, this.mySeatPos.z);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -50,24 +53,35 @@ class OfficeSimApp {
     this.renderer.shadowMap.enabled = true;
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.78));
     const dirLight = new THREE.DirectionalLight(0xfff6e5, 0.65);
-    dirLight.position.set(30, 45, 30);
+    dirLight.position.set(45, 60, 45);
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
+    // 80m四方フロア平面
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
-    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.85 });
+    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
     this.floorPlane.rotation.x = -Math.PI / 2;
     this.floorPlane.receiveShadow = true;
     this.scene.add(this.floorPlane);
 
-    this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0x81c784, 0xdcdcdc);
-    this.gridHelper.position.y = 0.005;
+    // --- 床グリッド多層描画 ---
+    // 1. 50cm サブグリッド (極薄グレー)
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
+    subGrid.position.y = 0.003;
+    this.scene.add(subGrid);
+
+    // 2. 5m メインガイドライン (薄いブルーグレー)
+    this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, 0x64748b, 0x94a3b8);
+    this.gridHelper.position.y = 0.006;
     this.scene.add(this.gridHelper);
 
     this.player = new Player(this.scene);
+    // 初期プレイヤー位置を自席の手前（作業位置）に設定
+    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 0.8);
+
     this.sheetService = new SheetService(CONFIG.GAS_API_URL);
     this.minimap = new Minimap('minimap-canvas');
     this.chatManager = new ChatManager(this.sheetService, () => this.currentUser, () => this.currentFloor);
@@ -81,8 +95,8 @@ class OfficeSimApp {
   updateCamera(targetX, targetZ) {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
-    const dist = CONFIG.CAMERA_DISTANCE || 18;
-    const elev = CONFIG.CAMERA_ELEVATION || 22;
+    const dist = CONFIG.CAMERA_DISTANCE || 22;
+    const elev = CONFIG.CAMERA_ELEVATION || 26;
 
     this.camera.position.set(validX + dist, elev, validZ + dist);
     this.camera.lookAt(validX, 0, validZ);
@@ -116,41 +130,84 @@ class OfficeSimApp {
 
     let layout = await this.sheetService.fetchFloorLayout(floorId);
     if (!layout || layout.length === 0) {
-      layout = [
-        { type: 'desk', x: -4, z: -4, rotation: 0, role: '自席', person: '自分', isMySeat: true, shiftWeekday: '09:00-18:00', extensionNumber: '3201' },
-        { type: 'chair', x: -4, z: -3.2, rotation: 0 },
-        { type: 'phone', x: -4.5, z: -4, rotation: 0, role: '内線電話', extensionNumber: '3201' },
-        { type: 'printer_desk', x: -4, z: -4, rotation: 0, role: '自席卓上プリンター', modelNumber: 'CANON LBP621C', tonerType: 'CRG-054H', drumType: '一体型' },
-        { type: 'board', x: -3.2, z: -4.5, rotation: 0, role: '業務連絡掲示板' },
-        { type: 'desk', x: 2, z: -4, rotation: 0, role: '課長', person: '佐藤 課長', distNeeded: 'dist_01', shiftWeekday: '09:00-17:00', extensionNumber: '3202' },
-        { type: 'chair', x: 2, z: -3.2, rotation: 0 },
-        { type: 'desk', x: 6, z: -4, rotation: 0, role: 'リーダー', person: '鈴木 主任', distNeeded: 'dist_04', shiftWeekday: '15:00-24:00', shiftSaturday: '13:00-21:00', extensionNumber: '3203' },
-        { type: 'chair', x: 6, z: -3.2, rotation: 0 },
-        { type: 'printer_floor', x: 10, z: 2, rotation: 0, role: 'フロア複合機', modelNumber: 'ApeosPort-VII C3373', tonerType: 'CT203138', drumType: 'CT351175' }
-      ];
+      layout = this.getDefaultLayoutForFloor(floorId);
     }
 
     layout.forEach(data => {
       const furniture = FurnitureFactory.create(data.type, data);
       this.scene.add(furniture);
       this.floorObjects.push(furniture);
+
+      // 自席デスクの位置を同期記録
+      if (furniture.userData.isMySeat) {
+        this.mySeatFloor = floorId;
+        this.mySeatPos = { x: furniture.position.x, z: furniture.position.z };
+      }
     });
 
+    // 80mフロアに合わせたエレベーター・上り階段・下り階段
     if (!this.floorObjects.some(o => o.userData.isElevator)) {
-      const elv = FurnitureFactory.create('elevator', { x: -9, z: -10, rotation: 0, role: 'エレベーター' });
+      const elv = FurnitureFactory.create('elevator', { x: -14, z: -16, rotation: 0, role: 'エレベーター' });
       this.scene.add(elv); this.floorObjects.push(elv);
     }
     if (!this.floorObjects.some(o => o.userData.isStairsUp)) {
-      const up = FurnitureFactory.create('stairs_up', { x: 7, z: -10, rotation: 0, role: '上り階段' });
+      const up = FurnitureFactory.create('stairs_up', { x: 12, z: -16, rotation: 0, role: '上り階段' });
       this.scene.add(up); this.floorObjects.push(up);
     }
     if (!this.floorObjects.some(o => o.userData.isStairsDown)) {
-      const dn = FurnitureFactory.create('stairs_down', { x: 10, z: -10, rotation: 0, role: '下り階段' });
+      const dn = FurnitureFactory.create('stairs_down', { x: 16, z: -16, rotation: 0, role: '下り階段' });
       this.scene.add(dn); this.floorObjects.push(dn);
     }
 
     this.checkBoardUnread();
     this.refreshNPCs();
+  }
+
+  // 6F（自席階）などの初期レイアウトプリセット
+  getDefaultLayoutForFloor(floorId) {
+    if (floorId === 6) {
+      return [
+        // 自席（6F設置）
+        { type: 'desk_150_80', x: -4, z: -4, rotation: 0, role: '自席', person: '自分', isMySeat: true, shiftWeekday: '09:00-18:00', extensionNumber: '6101' },
+        { type: 'chair', x: -4, z: -3.2, rotation: 0 },
+        { type: 'phone', x: -4.6, z: -4, rotation: 0, role: '内線電話', extensionNumber: '6101' },
+        { type: 'printer_desk', x: -4, z: -4, rotation: 0, role: '自席プリンター', modelNumber: 'CANON LBP621C', tonerType: 'CRG-054H' },
+        { type: 'board', x: -2.8, z: -4.6, rotation: 0, role: '業務連絡掲示板' },
+
+        // 同僚・デスク
+        { type: 'desk_150_80', x: 2, z: -4, rotation: 0, role: 'ニュースセンター長', person: '佐藤 センター長', distNeeded: 'dist_01', shiftWeekday: '09:00-17:00', extensionNumber: '6102' },
+        { type: 'chair', x: 2, z: -3.2, rotation: 0 },
+        { type: 'desk_150_80', x: 6, z: -4, rotation: 0, role: '編制デスク', person: '鈴木 主任', distNeeded: 'dist_04', shiftWeekday: '15:00-24:00', extensionNumber: '6103' },
+        { type: 'chair', x: 6, z: -3.2, rotation: 0 },
+
+        // 設備・応接
+        { type: 'printer_floor', x: 12, z: 2, rotation: 0, role: '6Fフロア複合機', modelNumber: 'ApeosPort-VII C3373', tonerType: 'CT203138' },
+        { type: 'sofa_reception', x: -8, z: 6, rotation: 0, role: '打合せソファ' },
+        { type: 'table_low_reception', x: -8, z: 7.2, rotation: 0, role: '応接ローテーブル' },
+        { type: 'locker_300_60', x: -14, z: -8, rotation: 0, role: '大型ロッカー' },
+        { type: 'custom_shelf', x: 10, z: -8, rotation: 0, role: '資料棚', shelfWidth: 2.0, shelfDepth: 0.5, shelfHeight: 1.8 }
+      ];
+    }
+    return [
+      { type: 'desk_150_80', x: 0, z: -4, rotation: 0, role: '受付・デスク', person: '担当者', shiftWeekday: '09:00-17:00' },
+      { type: 'chair', x: 0, z: -3.2, rotation: 0 },
+      { type: 'printer_floor', x: 8, z: 0, rotation: 0, role: '共用複合機' }
+    ];
+  }
+
+  // --- 自席へ戻る（ワープ機能） ---
+  returnToMySeat() {
+    this.closeModal();
+    if (this.currentFloor !== this.mySeatFloor) {
+      this.currentFloor = this.mySeatFloor;
+      const select = document.getElementById('floor-select');
+      if (select) select.value = String(this.mySeatFloor);
+      this.loadFloor(this.mySeatFloor);
+    }
+    // 自席デスクの手前（作業席）に着地
+    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 0.8);
+    this.player.targetRotation = Math.PI; // デスク側（正面）を向く
+    this.updateCamera(this.player.position.x, this.player.position.z);
   }
 
   async checkBoardUnread() {
@@ -177,7 +234,7 @@ class OfficeSimApp {
   refreshNPCs() {
     this.clearNPCs();
     this.floorObjects.forEach(obj => {
-      if (obj.userData.type === 'desk' && !obj.userData.isMySeat && obj.userData.person !== '未設定') {
+      if (obj.userData.type.includes('desk') && !obj.userData.isMySeat && obj.userData.person !== '未設定') {
         if (NPCManager.isWorkingNow(obj.userData)) {
           const npc = NPCManager.createSittingNPC(obj.userData.person, obj.userData.role);
           npc.position.set(obj.position.x, 0, obj.position.z + 0.7);
@@ -188,7 +245,6 @@ class OfficeSimApp {
     });
   }
 
-  // src/js/main.js の spawnFurnitureInFrontOfPlayer を拡張
   spawnFurnitureInFrontOfPlayer(type, extraData = {}) {
     const fwd = this.player.getForwardVector();
     let snapX = Math.round((this.player.position.x + fwd.x * 1.5) / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
@@ -218,13 +274,11 @@ class OfficeSimApp {
     this.selectFurniture(newObj);
   }
 
-  // 棚などの寸法変更時にメッシュをその場で再構築する
   rebuildFurnitureMesh(obj) {
     const d = obj.userData;
     const oldRot = obj.rotation.y;
     const oldPos = obj.position.clone();
 
-    // 既存子メッシュを破棄
     while (obj.children.length > 0) {
       const c = obj.children[0];
       obj.remove(c);
@@ -274,6 +328,9 @@ class OfficeSimApp {
       modelNumber: obj.userData.modelNumber || '',
       tonerType: obj.userData.tonerType || '',
       drumType: obj.userData.drumType || '',
+      shelfWidth: obj.userData.shelfWidth || '',
+      shelfDepth: obj.userData.shelfDepth || '',
+      shelfHeight: obj.userData.shelfHeight || '',
       distNeeded: obj.userData.distNeeded || ''
     }));
     const res = await this.sheetService.saveFloorLayout(this.currentFloor, items);
@@ -332,17 +389,31 @@ class OfficeSimApp {
       }
     });
 
-    document.getElementById('btn-dictionary')?.addEventListener('click', () => this.openDictionaryModal());
-    document.getElementById('btn-workflow')?.addEventListener('click', () => this.openWorkflowsTableModal());
+    // 右上機能 1: アカウント管理
+    document.getElementById('btn-account-manage')?.addEventListener('click', () => {
+      if (!this.currentUser) return;
+      this.showModal("👤 アカウント管理情報", `
+        <div style="font-size: 13px; line-height: 1.6;">
+          <strong>氏名:</strong> ${this.currentUser.name}<br>
+          <strong>メール:</strong> ${this.currentUser.email}<br>
+          <strong>所属部署:</strong> ${this.currentUser.department || '編集局'}<br>
+          <strong>権限ロール:</strong> <span style="color: #2563eb; font-weight: bold;">${this.currentUser.role}</span>
+        </div>
+      `);
+    });
 
-    // setupEvents 内の editBtn リスナー
+    // 右上機能 3: 自席へ戻る
+    document.getElementById('btn-return-myseat')?.addEventListener('click', () => {
+      this.returnToMySeat();
+    });
+
+    // 右上機能 4: レイアウト（家具配置）
     const editBtn = document.getElementById('btn-edit-mode');
     const carouselModal = document.getElementById('furniture-carousel-modal');
-
     editBtn?.addEventListener('click', () => {
       this.isEditMode = !this.isEditMode;
       editBtn.classList.toggle('active', this.isEditMode);
-      editBtn.innerText = this.isEditMode ? "保存して終了" : "家具配置";
+      editBtn.innerText = this.isEditMode ? "保存して終了" : "🛠️ レイアウト";
 
       if (carouselModal) {
         carouselModal.style.display = this.isEditMode ? 'flex' : 'none';
@@ -371,17 +442,7 @@ class OfficeSimApp {
       }
     });
 
-    document.querySelectorAll('.palette-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const type = e.target.getAttribute('data-type');
-        if (type) this.spawnFurnitureInFrontOfPlayer(type);
-      });
-    });
-
-    document.getElementById('btn-palette-close')?.addEventListener('click', () => {
-      palette.classList.remove('active');
-    });
-
+    // ドラッグ移動
     const dom = this.renderer.domElement;
     dom.addEventListener('pointerdown', e => {
       if (!this.isEditMode) return;
@@ -424,41 +485,30 @@ class OfficeSimApp {
     window.addEventListener('keydown', e => { if (e.key) this.keys[e.key.toLowerCase()] = true; });
     window.addEventListener('keyup', e => { if (e.key) this.keys[e.key.toLowerCase()] = false; });
 
+    // ジョイスティック
     const zone = document.getElementById('joystick-zone');
     const knob = document.getElementById('joystick-knob');
     let active = false, startX = 0, startY = 0;
-
     zone.addEventListener('pointerdown', e => {
       active = true;
       const rect = zone.getBoundingClientRect();
-      startX = rect.left + rect.width / 2;
-      startY = rect.top + rect.height / 2;
+      startX = rect.left + rect.width / 2; startY = rect.top + rect.height / 2;
     });
-
     window.addEventListener('pointermove', e => {
       if (!active) return;
-      let dx = e.clientX - startX;
-      let dy = e.clientY - startY;
-      let dist = Math.hypot(dx, dy);
+      let dx = e.clientX - startX, dy = e.clientY - startY, dist = Math.hypot(dx, dy);
       const maxR = 45;
-
-      if (dist > maxR) {
-        dx = (dx / dist) * maxR;
-        dy = (dy / dist) * maxR;
-        dist = maxR;
-      }
+      if (dist > maxR) { dx = (dx / dist) * maxR; dy = (dy / dist) * maxR; dist = maxR; }
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
 
       if (dist < 1.0) {
         this.inputVector = { x: 0, y: 0 };
       } else {
         const rad = Math.atan2(dy, dx) - Math.PI / 4;
-        const norm = dist / maxR;
-        this.inputVector.x = Math.cos(rad) * norm;
-        this.inputVector.y = Math.sin(rad) * norm;
+        this.inputVector.x = Math.cos(rad) * (dist / maxR);
+        this.inputVector.y = Math.sin(rad) * (dist / maxR);
       }
     });
-
     const endJoy = () => {
       active = false;
       knob.style.transform = 'translate(0px, 0px)';
@@ -467,21 +517,14 @@ class OfficeSimApp {
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
 
-    // --- ピンチイン / ピンチアウト & マウスホイール ズーム制御 ---
-    let initialPinchDistance = null;
-    let initialZoom = 1.0;
-    const minZoom = 0.5;
-    const maxZoom = 2.5;
-
-    const getTouchDistance = (t1, t2) => {
-      const dx = t1.clientX - t2.clientX;
-      const dy = t1.clientY - t2.clientY;
-      return Math.hypot(dx, dy);
-    };
+    // ピンチズーム & ホイール
+    let initialPinchDistance = null, initialZoom = 1.0;
+    const minZoom = 0.4, maxZoom = 2.5;
+    const getTouchDist = (t1, t2) => Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
 
     window.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
-        initialPinchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        initialPinchDistance = getTouchDist(e.touches[0], e.touches[1]);
         initialZoom = this.camera.zoom;
       }
     }, { passive: false });
@@ -489,25 +532,17 @@ class OfficeSimApp {
     window.addEventListener('touchmove', e => {
       if (e.touches.length === 2 && initialPinchDistance !== null) {
         e.preventDefault();
-        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
-        const scale = currentDistance / initialPinchDistance;
-        const newZoom = Math.max(minZoom, Math.min(maxZoom, initialZoom * scale));
-
-        this.camera.zoom = newZoom;
+        const curDist = getTouchDist(e.touches[0], e.touches[1]);
+        const scale = curDist / initialPinchDistance;
+        this.camera.zoom = Math.max(minZoom, Math.min(maxZoom, initialZoom * scale));
         this.camera.updateProjectionMatrix();
       }
     }, { passive: false });
 
-    window.addEventListener('touchend', e => {
-      if (e.touches.length < 2) {
-        initialPinchDistance = null;
-      }
-    });
+    window.addEventListener('touchend', e => { if (e.touches.length < 2) initialPinchDistance = null; });
 
     window.addEventListener('wheel', e => {
-      if (e.target.closest('#chat-drawer') || e.target.closest('#info-modal') || e.target.closest('#furniture-palette')) {
-        return;
-      }
+      if (e.target.closest('#chat-drawer') || e.target.closest('#info-modal') || e.target.closest('#furniture-carousel-modal')) return;
       e.preventDefault();
       const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
       this.camera.zoom = Math.max(minZoom, Math.min(maxZoom, this.camera.zoom * zoomFactor));
@@ -516,7 +551,7 @@ class OfficeSimApp {
 
     window.addEventListener('resize', () => {
       const aspect = window.innerWidth / window.innerHeight;
-      const d = CONFIG.CAMERA_VIEW_SIZE || 12;
+      const d = CONFIG.CAMERA_VIEW_SIZE || 15;
       this.camera.left = -d * aspect;
       this.camera.right = d * aspect;
       this.camera.top = d;
@@ -532,6 +567,7 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
+  // --- 接触判定 & 自席ポータル総合メニュー ---
   handleTriggerObject(obj) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
@@ -539,24 +575,17 @@ class OfficeSimApp {
     }
     const data = obj.userData;
 
+    // 階段即時移動
     if (data.isStairsUp) {
-      if (this.currentFloor < CONFIG.FLOORS.length) {
-        this.changeFloor(this.currentFloor + 1, 'stairs_up');
-      } else {
-        alert("最上階のためこれ以上上がれません。");
-      }
+      if (this.currentFloor < CONFIG.FLOORS.length) this.changeFloor(this.currentFloor + 1, 'stairs_up');
+      else alert("最上階のためこれ以上上がれません。");
       return;
     }
-
     if (data.isStairsDown) {
-      if (this.currentFloor > 1) {
-        this.changeFloor(this.currentFloor - 1, 'stairs_down');
-      } else {
-        alert("1階のためこれ以上下りられません。");
-      }
+      if (this.currentFloor > 1) this.changeFloor(this.currentFloor - 1, 'stairs_down');
+      else alert("1階のためこれ以上下りられません。");
       return;
     }
-
     if (data.isElevator) {
       this.triggerElevator();
       return;
@@ -566,71 +595,179 @@ class OfficeSimApp {
       return;
     }
 
-    if (data.type === 'desk') {
-      const px = obj.position.x;
-      const pz = obj.position.z;
+    // 自席接触時: 総合ポータルメニューを展開
+    if (data.isMySeat) {
+      this.openMySeatPortal();
+      return;
+    }
 
+    // 他同僚デスク接触時
+    if (data.type.includes('desk')) {
+      const px = obj.position.x, pz = obj.position.z;
       const nearbyPhones = this.floorObjects.filter(o => o.userData.type === 'phone' && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
       const extStr = nearbyPhones.map(p => p.userData.extensionNumber).filter(Boolean).join(', ') || data.extensionNumber || 'なし';
 
-      const nearbyPrinters = this.floorObjects.filter(o => o.userData.type.includes('printer') && Math.hypot(o.position.x - px, o.position.z - pz) < 1.4);
-
-      let printerInfoHtml = '';
-      if (nearbyPrinters.length > 0) {
-        printerInfoHtml += '<div style="margin-top: 8px; padding: 6px; background: #fdf4ff; border-radius: 6px; border: 1px solid #f0abfc;">';
-        nearbyPrinters.forEach(p => {
-          const pd = p.userData;
-          printerInfoHtml += `
-            <div style="font-size: 11px; margin-bottom: 4px;">
-              <strong style="color: #9333ea;">🖨️ ${pd.role} (${pd.type === 'printer_desk' ? '卓上型' : '床置複合機'})</strong><br>
-              型番: <strong>${pd.modelNumber || '未登録'}</strong><br>
-              対応トナー: ${pd.tonerType || '未登録'} | ドラム: ${pd.drumType || '未登録'}
-            </div>
-          `;
-        });
-        printerInfoHtml += '</div>';
-      }
-
-      const today = new Date().getDay();
-      let shiftToday = data.shiftWeekday || '09:00-17:00';
-      if (today === 6) shiftToday = data.shiftSaturday || '09:00-15:00';
-      if (today === 0) shiftToday = data.shiftHoliday || '休み';
-
-      const bodyHtml = `
+      this.showModal(`👤 ${data.role} のデスク詳細`, `
         <div style="font-size: 13px; line-height: 1.5;">
           <strong>担当者:</strong> ${data.person} (${data.department || '編集局'})<br>
-          <strong>本日の出勤時間:</strong> <span style="color: #0284c7; font-weight: bold;">${shiftToday}</span><br>
-          <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">
-            (平日: ${data.shiftWeekday || '-'} / 土曜: ${data.shiftSaturday || '-'} / 日祝: ${data.shiftHoliday || '-'})
-          </div>
           <strong>内線番号:</strong> <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${extStr}</span><br>
-          ${printerInfoHtml}
           <strong>必要配布物:</strong> ${data.distNeeded ? '【要配布】' + data.distNeeded : '特になし'}
         </div>
-      `;
-      this.showModal(`👤 ${data.role} のデスク詳細`, bodyHtml);
+      `);
       return;
     }
 
     if (data.type.includes('printer')) {
-      const bodyHtml = `
+      this.showModal(`🖨️ ${data.role}`, `
         <div style="font-size: 13px; line-height: 1.6;">
-          <strong>名称:</strong> ${data.role}<br>
-          <strong>型番:</strong> <span style="color: #1e293b; font-weight: bold;">${data.modelNumber || '未登録'}</span><br>
-          <strong>適合トナー:</strong> <span style="color: #0284c7;">${data.tonerType || '未登録'}</span><br>
-          <strong>ドラム形式:</strong> ${data.drumType || '未登録'}
+          型番: <strong>${data.modelNumber || '未登録'}</strong><br>
+          適合トナー: ${data.tonerType || '未登録'}<br>
+          ドラム: ${data.drumType || '未登録'}
         </div>
-      `;
-      this.showModal(`🖨️ プリンター・複合機機器情報`, bodyHtml);
-      return;
-    }
-
-    if (data.type === 'phone') {
-      this.showModal(`📞 電話設備`, `<strong>内線番号:</strong> ${data.extensionNumber || '内線 3200'}`);
+      `);
       return;
     }
 
     this.showModal(`${data.role}`, `<strong>状況:</strong> 通常稼働中`);
+  }
+
+  // --- 自席総合ポータル（業務フロー図、辞書、備品、資料配り先、履歴） ---
+  openMySeatPortal() {
+    const html = `
+      <div style="text-align: center; margin-bottom: 14px;">
+        <p style="font-size: 12px; color: #64748b; margin: 0;">自席PC端末にログイン中。実行する業務機能を選択してください。</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button id="portal-btn-wf" style="padding: 14px 10px; background: #e0f2fe; border: 1.5px solid #0284c7; border-radius: 10px; cursor: pointer; text-align: left;">
+          <div style="font-size: 14px; font-weight: bold; color: #0369a1;">📋 業務フロー図</div>
+          <div style="font-size: 11px; color: #0284c7; margin-top: 3px;">マニュアル閲覧・編集・保存</div>
+        </button>
+
+        <button id="portal-btn-dict" style="padding: 14px 10px; background: #faf5ff; border: 1.5px solid #a855f7; border-radius: 10px; cursor: pointer; text-align: left;">
+          <div style="font-size: 14px; font-weight: bold; color: #7e22ce;">📖 社内用語辞書</div>
+          <div style="font-size: 11px; color: #9333ea; margin-top: 3px;">用語検索・新規解説の追加</div>
+        </button>
+
+        <button id="portal-btn-equip" style="padding: 14px 10px; background: #f0fdf4; border: 1.5px solid #22c55e; border-radius: 10px; cursor: pointer; text-align: left;">
+          <div style="font-size: 14px; font-weight: bold; color: #15803d;">📦 備品・消耗品管理</div>
+          <div style="font-size: 11px; color: #16a34a; margin-top: 3px;">複合機トナー・用紙・ロッカー状況</div>
+        </button>
+
+        <button id="portal-btn-dist" style="padding: 14px 10px; background: #fef2f2; border: 1.5px solid #ef4444; border-radius: 10px; cursor: pointer; text-align: left;">
+          <div style="font-size: 14px; font-weight: bold; color: #b91c1c;">🎯 資料配り先確認</div>
+          <div style="font-size: 11px; color: #dc2626; margin-top: 3px;">朝刊・メモ等の配布トレーニング</div>
+        </button>
+      </div>
+
+      <div style="margin-top: 12px; text-align: center;">
+        <button id="portal-btn-hist" style="padding: 8px 16px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 20px; font-size: 12px; color: #475569; cursor: pointer;">
+          📊 自身の受講・業務履歴ログを確認
+        </button>
+      </div>
+    `;
+
+    this.showModal("💻 自席 業務ポータルコンソール", html);
+
+    document.getElementById('portal-btn-wf')?.addEventListener('click', () => {
+      this.openWorkflowsTableModal();
+    });
+    document.getElementById('portal-btn-dict')?.addEventListener('click', () => {
+      this.openDictionaryModal();
+    });
+    document.getElementById('portal-btn-equip')?.addEventListener('click', () => {
+      this.openEquipmentModal();
+    });
+    document.getElementById('portal-btn-dist')?.addEventListener('click', () => {
+      this.openDistributionSelectModal();
+    });
+    document.getElementById('portal-btn-hist')?.addEventListener('click', () => {
+      this.openHistoryModal();
+    });
+  }
+
+  // --- 備品管理モーダル ---
+  openEquipmentModal() {
+    const printers = this.floorObjects.filter(o => o.userData.type.includes('printer'));
+    let html = '<div style="max-height: 280px; overflow-y: auto;">';
+    html += '<strong style="color: #0f172a; font-size: 13px;">現フロアの登録機器・消耗品一覧:</strong>';
+    printers.forEach(p => {
+      const d = p.userData;
+      html += `
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; margin: 6px 0; font-size: 12px;">
+          <strong style="color: #2563eb;">🖨️ ${d.role}</strong> (${d.type === 'printer_desk' ? '卓上型' : '床置複合機'})<br>
+          型番: <strong>${d.modelNumber || '未登録'}</strong> | トナー: <strong>${d.tonerType || '未登録'}</strong> | ドラム: ${d.drumType || '未登録'}
+        </div>
+      `;
+    });
+    html += '</div>';
+    this.showModal("📦 現フロア 備品・消耗品管理", html);
+  }
+
+  // --- 資料配り先確認（トレーニング選択） ---
+  openDistributionSelectModal() {
+    const tasks = [
+      { id: "dist_01", title: "📰 朝刊・夕刊メモ配り (5F・6F・7F)" },
+      { id: "dist_02", title: "📝 朝刊あつかい・論説秘書配り" },
+      { id: "dist_04", title: "✉️ 友好社・運動メモ配り" }
+    ];
+    let html = '<p style="font-size: 12px; color: #64748b;">開始する配布タスクを選択してください。対象座席に赤マーカーが点灯します。</p>';
+    tasks.forEach(t => {
+      html += `
+        <button class="btn-start-dist" data-id="${t.id}" style="width: 100%; text-align: left; padding: 10px; margin: 6px 0; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; cursor: pointer;">
+          <strong>▶ ${t.title}</strong>
+        </button>
+      `;
+    });
+    this.showModal("🎯 資料配り先確認・トレーニング起動", html);
+    document.querySelectorAll('.btn-start-dist').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const id = e.currentTarget.getAttribute('data-id');
+        this.closeModal();
+        this.startDistributionTraining(id);
+      });
+    });
+  }
+
+  // --- 受講・実績履歴 ---
+  async openHistoryModal() {
+    if (!this.currentUser) return;
+    const logs = await this.sheetService.fetchTrainingLogs();
+    let html = '<div style="max-height: 280px; overflow-y: auto;">';
+    if (logs.length === 0) {
+      html += '<p style="color: #78909c; font-size: 13px;">まだ完了した受講・業務履歴はありません。</p>';
+    } else {
+      logs.slice().reverse().forEach(l => {
+        html += `
+          <div style="border-bottom: 1px solid #e2e8f0; padding: 6px 0; font-size: 12px;">
+            <div style="font-weight: bold; color: #1e293b;">🎯 ${l.taskTitle}</div>
+            <div style="color: #64748b; font-size: 11px;">スコア: ${l.score}点 (所要時間: ${l.clearTimeSec}秒) • ${l.timestamp}</div>
+          </div>
+        `;
+      });
+    }
+    html += '</div>';
+    this.showModal(`📊 ${this.currentUser.name} さんの受講・実績履歴`, html);
+  }
+
+  startDistributionTraining(distId) {
+    this.currentTrainingTaskId = distId;
+    this.trainingStartTime = Date.now();
+    this.activeTargets = [];
+
+    this.floorObjects.forEach(obj => {
+      const data = obj.userData;
+      if (data.distNeeded === distId && data.redDot) {
+        data.redDot.visible = true;
+        this.activeTargets.push(obj);
+      }
+    });
+
+    if (this.activeTargets.length === 0) {
+      alert("現フロアに対象の配布先座席がありません。他フロアも確認してください。");
+      return;
+    }
+    alert(`【配布トレーニング開始】\n赤ポチの座席（${this.activeTargets.length}箇所）に書類を届けてください。`);
   }
 
   async triggerBoard(boardObj) {
@@ -855,9 +992,9 @@ class OfficeSimApp {
 
     this.loadFloor(targetFloor);
 
-    if (arrivalType === 'stairs_up') this.player.position.set(7, 0, -8);
-    else if (arrivalType === 'stairs_down') this.player.position.set(10, 0, -8);
-    else if (arrivalType === 'elevator') this.player.position.set(-9, 0, -8);
+    if (arrivalType === 'stairs_up') this.player.position.set(12, 0, -14);
+    else if (arrivalType === 'stairs_down') this.player.position.set(16, 0, -14);
+    else if (arrivalType === 'elevator') this.player.position.set(-14, 0, -14);
     else this.player.position.set(0, 0, 0);
   }
 

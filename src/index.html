@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/ui.css">
   <style>
-    /* 未読バッジ */
     .badge-counter {
       position: absolute; top: -6px; right: -6px;
       background: #ef4444; color: #fff; font-size: 11px; font-weight: 800;
@@ -15,8 +14,6 @@
       display: none; align-items: center; justify-content: center;
       padding: 0 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); pointer-events: none;
     }
-
-    /* ミニマップ (右下配置) */
     #minimap-container {
       position: absolute; bottom: 20px; right: 20px;
       width: 140px; height: 140px; background: rgba(15, 23, 42, 0.75);
@@ -25,36 +22,17 @@
     }
     #minimap-canvas { width: 100%; height: 100%; display: block; }
 
-    /* 家具パレット & 編集コントロール */
-    #furniture-palette {
-      position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
-      display: none; gap: 8px; background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(8px); padding: 10px 14px; border-radius: 24px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.25); pointer-events: auto; max-width: 90vw; overflow-x: auto; z-index: 20;
-    }
-    #furniture-palette.active { display: flex; }
-    .palette-btn {
-      background: #f0f4f8; border: 1px solid #cfd8dc; padding: 8px 12px; border-radius: 12px;
-      font-size: 12px; font-weight: bold; color: #37474f; cursor: pointer; white-space: nowrap;
-    }
-    .palette-btn.cancel { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
-
-    /* 家具編集フローティング操作バー（選択中のみ表示） */
     #furniture-action-bar {
-      position: absolute; bottom: 175px; left: 50%; transform: translateX(-50%);
+      position: absolute; bottom: 330px; left: 50%; transform: translateX(-50%);
       display: none; gap: 8px; background: #1e293b; padding: 6px 12px; border-radius: 20px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 22; pointer-events: auto;
     }
     #furniture-action-bar.active { display: flex; }
-    .fab-btn {
-      border: none; border-radius: 14px; padding: 6px 12px; font-size: 11px;
-      font-weight: bold; cursor: pointer; color: #fff;
-    }
+    .fab-btn { border: none; border-radius: 14px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; color: #fff; }
     .fab-rotate { background: #2563eb; }
     .fab-edit { background: #0284c7; }
     .fab-delete { background: #dc2626; }
 
-    /* チャットドロワー */
     #chat-drawer {
       position: absolute; top: 0; right: -360px; width: 340px; max-width: 85vw; height: 100%;
       background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(12px); box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
@@ -74,7 +52,6 @@
     .chat-input-bar input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 13px; }
     .chat-input-bar button { padding: 8px 16px; background: #00897b; color: #fff; border: none; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; }
 
-    /* 認証モーダル */
     #login-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px);
@@ -88,26 +65,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-  <!-- 認証オーバーレイ -->
   <div id="login-overlay">
     <div class="login-box">
-      <h2>🔐 OfficeSim セキュア認証</h2>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">許可されたアカウントでログインしてください。</p>
-      
+      <h2>🔐 OfficeSim 認証</h2>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">登録済みメールアドレスでログインしてください。</p>
       <div id="step-email-area">
         <input type="email" id="login-email" class="login-field" placeholder="Googleメールアドレス">
         <button id="btn-check-email" class="btn-login-submit">次へ</button>
       </div>
-
       <div id="password-form-area" style="display: none;">
         <div id="login-user-name" style="margin-bottom: 12px; font-weight: bold; color: #1e293b;"></div>
-        <input type="password" id="login-password" class="login-field" placeholder="パスワード (4〜20文字)">
+        <input type="password" id="login-password" class="login-field" placeholder="パスワード">
         <button id="btn-login-exec" class="btn-login-submit">サインイン</button>
       </div>
-
       <div id="setup-form-area" style="display: none;">
         <div id="setup-user-name" style="margin-bottom: 12px; font-weight: bold; color: #1e293b;"></div>
-        <p style="color: #0284c7; font-size: 12px; margin-bottom: 8px;">初回サインインです。パスワードを設定してください。</p>
+        <p style="color: #0284c7; font-size: 12px; margin-bottom: 8px;">初回パスワードを設定してください。</p>
         <input type="password" id="setup-password" class="login-field" placeholder="新しいパスワード (4〜20文字)">
         <button id="btn-setup-exec" class="btn-login-submit" style="background: #0284c7;">設定して開始</button>
       </div>
@@ -116,7 +89,6 @@
 
   <div id="canvas-container"></div>
 
-  <!-- ミニマップ -->
   <div id="minimap-container">
     <canvas id="minimap-canvas" width="140" height="140"></canvas>
   </div>
@@ -126,37 +98,41 @@
       <div class="nav-group">
         <span class="nav-label">フロア:</span>
         <select id="floor-select" class="floor-select">
-          <option value="1">1F エントランス・受付</option>
-          <option value="2">2F 総務・人事・経理</option>
-          <option value="3" selected>3F 営業・企画推進部</option>
-          <option value="4">4F DX開発・システム課</option>
-          <option value="5">5F マーケティング・制作</option>
-          <option value="6">6F 会議室・研修室</option>
-          <option value="7">7F 役員フロア</option>
+          <option value="1">1F エントランス・受付・新聞室</option>
+          <option value="2">2F 販売部・総務・経理</option>
+          <option value="3">3F 編集局・連絡員席</option>
+          <option value="4">4F DX推進・システム</option>
+          <option value="5">5F 制作・文化部・写真映像部</option>
+          <option value="6" selected>6F ニュースセンター・編制</option>
+          <option value="7">7F 論説委員会・役員室</option>
           <option value="8">8F カフェ・ラウンジ</option>
         </select>
       </div>
 
+      <!-- 右側機能一覧（4機能限定） -->
       <div class="nav-group">
-        <span id="user-badge" style="font-size: 12px; font-weight: bold; color: #1e88e5; padding: 4px 8px; background: #e3f2fd; border-radius: 12px;">👤 認証待機中</span>
-        <button id="btn-history" class="btn-mode" style="background: #e65100;">受講履歴</button>
-        
-        <!-- チャットボタン (未読バッジ付き) -->
+        <!-- 1. アカウント管理 -->
+        <button id="btn-account-manage" class="btn-mode" style="background: #1e293b; color: #fff;">
+          <span id="user-badge">👤 アカウント</span>
+        </button>
+
+        <!-- 2. チャット (未読バッジ付き) -->
         <div style="position: relative; display: inline-block;">
-          <button id="btn-chat-toggle" class="btn-mode" style="background: #00897b;">💬 チャット</button>
+          <button id="btn-chat-toggle" class="btn-mode" style="background: #00897b; color: #fff;">💬 チャット</button>
           <span id="chat-unread-badge" class="badge-counter">0</span>
         </div>
 
-        <button id="btn-workflow" class="btn-mode" style="background: #0288d1;">業務フロー図</button>
-        <button id="btn-dictionary" class="btn-mode" style="background: #7b1fa2;">辞書(自席)</button>
-        <button id="btn-edit-mode" class="btn-mode">家具配置</button>
+        <!-- 3. 自席へ戻る -->
+        <button id="btn-return-myseat" class="btn-mode" style="background: #2563eb; color: #fff;">🏠 自席へ戻る</button>
+
+        <!-- 4. レイアウト (家具配置) -->
+        <button id="btn-edit-mode" class="btn-mode" style="background: #475569; color: #fff;">🛠️ レイアウト</button>
       </div>
     </header>
 
-    <!-- チャットドロワー -->
     <div id="chat-drawer">
       <div class="chat-header">
-        <span style="font-weight: bold;">💬 社内コミュニケーション</span>
+        <span style="font-weight: bold;">💬 社内チャット</span>
         <button id="btn-chat-close" style="background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;">✕</button>
       </div>
       <div class="chat-tabs">
@@ -171,63 +147,59 @@
       </div>
     </div>
 
-    <!-- 家具操作用フローティングバー (配置モード時) -->
     <div id="furniture-action-bar">
-      <button id="btn-f-rotate" class="fab-btn fab-rotate">🔄 90°回転</button>
+      <button id="btn-f-rotate" class="fab-btn fab-rotate">🔄 45°回転</button>
       <button id="btn-f-edit" class="fab-btn fab-edit">✏️ 属性編集</button>
       <button id="btn-f-delete" class="fab-btn fab-delete">🗑️ 撤去</button>
     </div>
 
-    <!-- 家具パレット -->
     <!-- カルーセルスライド式 家具選択パレット -->
-  <div id="furniture-carousel-modal" style="
-    position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%);
-    display: none; flex-direction: column; align-items: center;
-    background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
-    border: 1.5px solid rgba(255, 255, 255, 0.2); border-radius: 20px;
-    padding: 12px 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-    z-index: 25; pointer-events: auto; width: 280px; text-align: center; color: #fff;
-  ">
-    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 6px;">
-      <span id="palette-item-cat" style="font-size: 11px; color: #38bdf8; font-weight: bold;">[机]</span>
-      <span id="palette-item-index" style="font-size: 11px; color: #94a3b8;">1 / 16</span>
-      <button id="btn-carousel-close" style="background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer;">✕</button>
-    </div>
-
-    <!-- 左右矢印と中央プレビューキャンバス -->
-    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 4px 0;">
-      <button id="btn-palette-prev" style="
-        background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
-        width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      ">〈</button>
-
-      <div style="width: 170px; height: 140px; display: flex; align-items: center; justify-content: center; position: relative;">
-        <canvas id="palette-preview-canvas" width="180" height="180" style="width: 140px; height: 140px;"></canvas>
+    <div id="furniture-carousel-modal" style="
+      position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%);
+      display: none; flex-direction: column; align-items: center;
+      background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
+      border: 1.5px solid rgba(255, 255, 255, 0.2); border-radius: 20px;
+      padding: 12px 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+      z-index: 25; pointer-events: auto; width: 280px; text-align: center; color: #fff;
+    ">
+      <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 6px;">
+        <span id="palette-item-cat" style="font-size: 11px; color: #38bdf8; font-weight: bold;">[机]</span>
+        <span id="palette-item-index" style="font-size: 11px; color: #94a3b8;">1 / 16</span>
+        <button id="btn-carousel-close" style="background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer;">✕</button>
       </div>
 
-      <button id="btn-palette-next" style="
-        background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
-        width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      ">〉</button>
-    </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 4px 0;">
+        <button id="btn-palette-prev" style="
+          background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
+          width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        ">〈</button>
 
-    <div id="palette-item-name" style="font-size: 13px; font-weight: bold; margin: 4px 0 8px; color: #f8fafc;">標準デスク (150×80)</div>
+        <div style="width: 170px; height: 140px; display: flex; align-items: center; justify-content: center; position: relative;">
+          <canvas id="palette-preview-canvas" width="180" height="180" style="width: 140px; height: 140px;"></canvas>
+        </div>
 
-    <!-- 可変棚用コントロール (棚選択時のみ表示) -->
-    <div id="shelf-dimension-controls" style="display: none; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 6px; width: 100%; margin-bottom: 8px; font-size: 11px; box-sizing: border-box;">
-      <div style="margin-bottom: 4px; color: #fde047; font-weight: bold;">棚サイズ指定 (m)</div>
-      <div style="display: flex; gap: 4px;">
-        <input type="number" id="shelf-inp-w" value="1.2" step="0.1" title="幅" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
-        <input type="number" id="shelf-inp-d" value="0.45" step="0.05" title="奥行" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
-        <input type="number" id="shelf-inp-h" value="1.8" step="0.1" title="高さ" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+        <button id="btn-palette-next" style="
+          background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 20px;
+          width: 34px; height: 34px; border-radius: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        ">〉</button>
       </div>
-    </div>
 
-    <button id="btn-palette-place" style="
-      width: 100%; padding: 8px 0; background: #2563eb; color: #fff; font-size: 13px;
-      font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
-    ">＋ この家具を配置</button>
-  </div>
+      <div id="palette-item-name" style="font-size: 13px; font-weight: bold; margin: 4px 0 8px; color: #f8fafc;">標準デスク (150×80)</div>
+
+      <div id="shelf-dimension-controls" style="display: none; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 6px; width: 100%; margin-bottom: 8px; font-size: 11px; box-sizing: border-box;">
+        <div style="margin-bottom: 4px; color: #fde047; font-weight: bold;">棚サイズ指定 (m)</div>
+        <div style="display: flex; gap: 4px;">
+          <input type="number" id="shelf-inp-w" value="1.2" step="0.1" title="幅" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+          <input type="number" id="shelf-inp-d" value="0.45" step="0.05" title="奥行" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+          <input type="number" id="shelf-inp-h" value="1.8" step="0.1" title="高さ" style="width: 32%; padding: 2px 4px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #fff;">
+        </div>
+      </div>
+
+      <button id="btn-palette-place" style="
+        width: 100%; padding: 8px 0; background: #2563eb; color: #fff; font-size: 13px;
+        font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+      ">＋ この家具を配置</button>
+    </div>
 
     <div id="joystick-zone"><div id="joystick-knob"></div></div>
 
@@ -242,7 +214,6 @@
     </div>
   </div>
 
-  <!-- 動的タイムスタンプローダー -->
   <script>
     (function() {
       const script = document.createElement('script');
