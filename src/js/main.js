@@ -157,7 +157,7 @@ class OfficeSimApp {
     return null;
   }
 
-  // silent = true の時はグローバルローディングUIを出さない
+  // silent = true のときはグローバルローディングUIを出さない
   async loadFloor(floorId, silent = false) {
     if (!silent) this.showLoading();
     try {
@@ -419,7 +419,7 @@ class OfficeSimApp {
       }
     }
 
-    // 2. 丸状暗転（外側から縮小し、キャラ周辺を残してから最後にキャラが暗転）
+    // 2. 丸状暗転（外側から縮小し、キャラ周辺を残した後に最後キャラ自身が暗転）
     if (iris) {
       const p = this.player.position.clone();
       p.y += 0.8;
@@ -432,7 +432,7 @@ class OfficeSimApp {
       iris.style.transition = 'clip-path 0.55s cubic-bezier(0.25, 1, 0.5, 1)';
       iris.style.clipPath = 'circle(150% at ' + screenX + 'px ' + screenY + 'px)';
 
-      // ステップA: キャラクターの周りまでスポットライト状に円が絞られる
+      // ステップA: キャラクターの頭元を残すスポットライト状態（半径 48px）まで縮小
       await new Promise(r => setTimeout(r, 30));
       iris.style.clipPath = 'circle(48px at ' + screenX + 'px ' + screenY + 'px)';
       await new Promise(r => setTimeout(r, 580));

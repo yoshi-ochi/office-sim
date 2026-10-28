@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -233,6 +233,7 @@
   <button id="btn-open-palette-fab">🪑 家具パレット</button>
 
   <!-- アイリスアウト/イン用 シネマティックトランジション -->
+    <!-- キャラクター中心アイリス暗転＆明転オーバーレイ -->
   <div id="iris-overlay" style="
     display: none;
     position: fixed;
@@ -240,11 +241,9 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: #0f172a;
-    z-index: 9998;
+    background: #0b0f19;
+    z-index: 99999;
     pointer-events: none;
-    clip-path: circle(150% at 50% 50%);
-    transition: clip-path 0.75s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
   "></div>
 
   <script>
