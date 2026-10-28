@@ -157,7 +157,7 @@ class OfficeSimApp {
     return null;
   }
 
-  // silent = true のときはグローバルローディングUIを出さない
+  // silent = true の時はローディング画面を出さない
   async loadFloor(floorId, silent = false) {
     if (!silent) this.showLoading();
     try {
@@ -384,13 +384,15 @@ class OfficeSimApp {
     }
   }
 
-  // ★ 階移動モーション再構築版（Canvas型抜きアイリス＆ジワリ明転）
+  // =========================================================================
+  // ★ 階移動モーション（画面の対角を覆う長方形の内側 且つ 円の外側を黒くする描画）
+  // =========================================================================
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
     this.closeModal();
 
-    // 1. 移動モーション（エレベーター扉開閉・入室 / 階段昇降）
+    // 1. 移動演出（エレベーター扉開閉・中へ進む / 階段を登る・下りる）
     if (interactObj && interactObj.userData.isElevator) {
       const doorL = interactObj.userData.doorL;
       const doorR = interactObj.userData.doorR;
@@ -417,7 +419,7 @@ class OfficeSimApp {
       }
     }
 
-    // 2. Canvas 2D 型抜きアニメーションの準備
+    // 2. 「長方形の内側 且つ 円の外側」を黒く塗りつぶす Canvas 描画
     const cvs = document.getElementById('transition-canvas');
     const ctx = cvs ? cvs.getContext('2d') : null;
 
@@ -426,68 +428,68 @@ class OfficeSimApp {
       cvs.height = window.innerHeight;
       cvs.style.display = 'block';
 
-      // 画面上のキャラクター頭部スクリーン座標を算出
+      // キャラクター頭部の画面座標
       const p = this.player.position.clone();
       p.y += 0.85;
       p.project(this.camera);
       const cx = (p.x * 0.5 + 0.5) * cvs.width;
       const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
-      const maxR = Math.hypot(cvs.width, cvs.height);
 
-      // 黒幕を描き、中心の円だけ透明に型抜く描画関数
-      const drawIris = (radius) => {
+      // 画面の対角長を直径とする円の初期半径（画面全体をすっぽり覆う）
+      const maxRadius = Math.hypot(cvs.width, cvs.height);
+
+      // 【重要】長方形の内側 かつ 円の外側 を黒くする描画（evenodd ルール）
+      const drawCutoutHole = (r) => {
         ctx.clearRect(0, 0, cvs.width, cvs.height);
-        // 全面を黒で塗る
-        ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = '#0b0f19';
-        ctx.fillRect(0, 0, cvs.width, cvs.height);
-        // 半径 > 0 のとき、キャラクター位置を円形に型抜く（消しゴム効果）
-        if (radius > 0) {
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.beginPath();
-          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-          ctx.fill();
+        ctx.beginPath();
+        // 外側の長方形（全画面）
+        ctx.rect(0, 0, cvs.width, cvs.height);
+        // 内側の型抜き円（半径 r が 0 より大きい場合のみ穴を開ける）
+        if (r > 0) {
+          ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
         }
+        // 長方形の内側 且つ 円の外側 のみが黒く塗りつぶされる
+        ctx.fill('evenodd');
       };
 
-      // 【フェーズA】外側が黒く穴が狭まり、キャラクター周囲（半径45px）まで縮小
-      const durationA = 600; // 0.6秒
-      const startTimeA = performance.now();
+      // フェーズ1: 円の半径を画面全域から「キャラクターの周囲（半径45px）」まで狭める
+      const duration1 = 650; // 0.65秒
+      const startT1 = performance.now();
       await new Promise(resolve => {
-        const animA = (now) => {
-          const progress = Math.min(1, (now - startTimeA) / durationA);
-          // イージング（滑らかな減速）
+        const anim1 = (now) => {
+          const progress = Math.min(1, (now - startT1) / duration1);
           const ease = 1 - Math.pow(1 - progress, 3);
-          const currentR = maxR - (maxR - 45) * ease;
-          drawIris(currentR);
-          if (progress < 1) requestAnimationFrame(animA);
+          const currentR = maxRadius - (maxRadius - 45) * ease;
+          drawCutoutHole(currentR);
+          if (progress < 1) requestAnimationFrame(anim1);
           else resolve();
         };
-        requestAnimationFrame(animA);
+        requestAnimationFrame(anim1);
       });
 
-      // キャラクターが見えている状態で一瞬の間 (120ms)
+      // キャラクターだけが見えている状態で一瞬キープ (120ms)
       await new Promise(r => setTimeout(r, 120));
 
-      // 【フェーズB】最後にキャラクターの穴が 0px へと閉じて完全暗転
-      const durationB = 220; // 0.22秒
-      const startTimeB = performance.now();
+      // フェーズ2: 最後にキャラクター頭元の穴（45px -> 0px）が閉じて完全な全画面真っ黒へ
+      const duration2 = 240; // 0.24秒
+      const startT2 = performance.now();
       await new Promise(resolve => {
-        const animB = (now) => {
-          const progress = Math.min(1, (now - startTimeB) / durationB);
+        const anim2 = (now) => {
+          const progress = Math.min(1, (now - startT2) / duration2);
           const currentR = 45 * (1 - progress);
-          drawIris(currentR);
-          if (progress < 1) requestAnimationFrame(animB);
+          drawCutoutHole(currentR);
+          if (progress < 1) requestAnimationFrame(anim2);
           else resolve();
         };
-        requestAnimationFrame(animB);
+        requestAnimationFrame(anim2);
       });
 
-      // 完全に真っ黒な状態を維持
-      drawIris(0);
+      // 完全に真っ黒な状態を固定
+      drawCutoutHole(0);
     }
 
-    // 3. 完全暗転の裏でフロア読み込み（ローディングUIは一切出さない）
+    // 3. 完全暗転の裏でフロアをサイレント読み込み（ローディングUIは一切出さない）
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
@@ -502,17 +504,16 @@ class OfficeSimApp {
     this.player.position.y = 0;
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // 4. 新フロアがジワリと明転（Canvas全体のAlphaを 1.0 -> 0.0 へフェード）
+    // 4. 新フロアがジワリと明転（黒画面の Alpha を 1.0 -> 0.0 へフェード）
     if (cvs && ctx) {
       const fadeDuration = 700; // 0.7秒
-      const fadeStart = performance.now();
+      const startFade = performance.now();
       await new Promise(resolve => {
         const animFade = (now) => {
-          const progress = Math.min(1, (now - fadeStart) / fadeDuration);
+          const progress = Math.min(1, (now - startFade) / fadeDuration);
           const alpha = 1 - progress;
           ctx.clearRect(0, 0, cvs.width, cvs.height);
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.fillStyle = gba(11, 15, 25, ${alpha});
+          ctx.fillStyle = 'rgba(11, 15, 25, ' + alpha + ')';
           ctx.fillRect(0, 0, cvs.width, cvs.height);
           if (progress < 1) requestAnimationFrame(animFade);
           else resolve();
@@ -1257,5 +1258,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
-
