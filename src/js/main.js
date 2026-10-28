@@ -59,13 +59,13 @@ class OfficeSimApp {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.85));
     const dirLight = new THREE.DirectionalLight(0xfff6e5, 0.65);
     dirLight.position.set(45, 60, 45);
-    dirLight.castShadow = true;
+    dirLight.castShadow = false;
     this.scene.add(dirLight);
 
     // 80m四方フロア
@@ -73,7 +73,7 @@ class OfficeSimApp {
     this.floorMat = new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
     this.floorPlane.rotation.x = -Math.PI / 2;
-    this.floorPlane.receiveShadow = true;
+    this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
     // 50cmサブグリッド
@@ -1085,6 +1085,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 

@@ -1,4 +1,4 @@
-// src/js/entities/Furniture.js
+﻿// src/js/entities/Furniture.js
 import { CONFIG } from '../config.js';
 
 export class FurnitureFactory {
@@ -123,7 +123,7 @@ export class FurnitureFactory {
     const topMat = new THREE.MeshStandardMaterial({ color: isMySeat ? 0x64b5f6 : 0xd7ccc8, roughness: 0.4 });
     const top = new THREE.Mesh(topGeo, topMat);
     top.position.y = 0.72;
-    top.castShadow = true;
+    top.castShadow = false;
     group.add(top);
 
     const legGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8);
@@ -133,7 +133,7 @@ export class FurnitureFactory {
     [[-xOff, -zOff], [xOff, -zOff], [-xOff, zOff], [xOff, zOff]].forEach(([x, z]) => {
       const leg = new THREE.Mesh(legGeo, legMat);
       leg.position.set(x, 0.35, z);
-      leg.castShadow = true;
+      leg.castShadow = false;
       group.add(leg);
     });
 
@@ -142,7 +142,7 @@ export class FurnitureFactory {
       new THREE.MeshStandardMaterial({ color: 0x212121 })
     );
     mon.position.set(0, 0.95, -d / 4);
-    mon.castShadow = true;
+    mon.castShadow = false;
     group.add(mon);
 
     return group;
@@ -156,7 +156,7 @@ export class FurnitureFactory {
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.5, metalness: 0.2 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = 0.65;
-    body.castShadow = true;
+    body.castShadow = false;
     group.add(body);
 
     // 扉のスリットライン (5扉)
@@ -181,7 +181,7 @@ export class FurnitureFactory {
     [-w / 2 + 0.02, w / 2 - 0.02].forEach(x => {
       const side = new THREE.Mesh(sideGeo, woodMat);
       side.position.set(x, h / 2, 0);
-      side.castShadow = true;
+      side.castShadow = false;
       group.add(side);
     });
 
@@ -192,7 +192,7 @@ export class FurnitureFactory {
       const y = (h / shelvesCount) * i;
       const sh = new THREE.Mesh(shelfGeo, woodMat);
       sh.position.set(0, Math.max(0.02, y), 0);
-      sh.castShadow = true;
+      sh.castShadow = false;
       group.add(sh);
     }
 
@@ -214,13 +214,13 @@ export class FurnitureFactory {
     // 座面 (幅1.8m, 奥行0.75m, 高0.42m)
     const seat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.22, 0.75), leatherMat);
     seat.position.y = 0.32;
-    seat.castShadow = true;
+    seat.castShadow = false;
     group.add(seat);
 
     // 背もたれ
     const back = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.48, 0.2), leatherMat);
     back.position.set(0, 0.62, -0.28);
-    back.castShadow = true;
+    back.castShadow = false;
     group.add(back);
 
     // 肘掛け (左右)
@@ -228,7 +228,7 @@ export class FurnitureFactory {
     [-0.95, 0.95].forEach(x => {
       const arm = new THREE.Mesh(armGeo, leatherMat);
       arm.position.set(x, 0.44, 0);
-      arm.castShadow = true;
+      arm.castShadow = false;
       group.add(arm);
     });
 
@@ -252,7 +252,7 @@ export class FurnitureFactory {
     const topMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.1, metalness: 0.4 });
     const top = new THREE.Mesh(topGeo, topMat);
     top.position.y = 0.4;
-    top.castShadow = true;
+    top.castShadow = false;
     group.add(top);
 
     // テーブル脚 (スクエア金属ブラック)
@@ -261,7 +261,7 @@ export class FurnitureFactory {
     [[-0.54, -0.24], [0.54, -0.24], [-0.54, 0.24], [0.54, 0.24]].forEach(([x, z]) => {
       const leg = new THREE.Mesh(legGeo, legMat);
       leg.position.set(x, 0.19, z);
-      leg.castShadow = true;
+      leg.castShadow = false;
       group.add(leg);
     });
 
@@ -273,9 +273,9 @@ export class FurnitureFactory {
     const group = new THREE.Group();
     const seatMat = new THREE.MeshStandardMaterial({ color: 0x37474f });
     const seat = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.06, 0.48), seatMat);
-    seat.position.y = 0.45; seat.castShadow = true; group.add(seat);
+    seat.position.y = 0.45; seat.castShadow = false; group.add(seat);
     const back = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.45, 0.05), seatMat);
-    back.position.set(0, 0.7, -0.22); back.castShadow = true; group.add(back);
+    back.position.set(0, 0.7, -0.22); back.castShadow = false; group.add(back);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), seatMat);
     pole.position.y = 0.21; group.add(pole);
     return group;
@@ -283,13 +283,13 @@ export class FurnitureFactory {
 
   static buildPartition() {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.06), new THREE.MeshStandardMaterial({ color: 0x90a4ae }));
-    mesh.position.y = 0.7; mesh.castShadow = true; return mesh;
+    mesh.position.y = 0.7; mesh.castShadow = false; return mesh;
   }
 
   static buildFloorPrinter(userData) {
     const group = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.95, 0.8), new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.3 }));
-    body.position.y = 0.48; body.castShadow = true; group.add(body);
+    body.position.y = 0.48; body.castShadow = false; group.add(body);
     const panel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.25), new THREE.MeshStandardMaterial({ color: 0x1976d2 }));
     panel.position.set(0.15, 0.98, 0.2); group.add(panel);
     return group;
@@ -299,7 +299,7 @@ export class FurnitureFactory {
     const group = new THREE.Group();
     const h = isUnderDesk ? 0.15 : 0.75;
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.24, 0.38), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }));
-    body.position.y = h + 0.12; body.castShadow = true; group.add(body);
+    body.position.y = h + 0.12; body.castShadow = false; group.add(body);
     const tray = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.12), new THREE.MeshStandardMaterial({ color: 0x334155 }));
     tray.position.set(0, h + 0.1, 0.22); group.add(tray);
     return group;
@@ -315,7 +315,7 @@ export class FurnitureFactory {
   static buildBoard(parentGroup) {
     const group = new THREE.Group();
     const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.06), new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 }));
-    frame.position.y = 1.35; frame.castShadow = true; group.add(frame);
+    frame.position.y = 1.35; frame.castShadow = false; group.add(frame);
     const face = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.98, 0.07), new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 }));
     face.position.y = 1.35; group.add(face);
     const badge = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
@@ -327,7 +327,7 @@ export class FurnitureFactory {
   static buildElevator() {
     const group = new THREE.Group();
     const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 1.6), new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.4, metalness: 0.3 }));
-    shaft.position.y = 1.6; shaft.castShadow = true; group.add(shaft);
+    shaft.position.y = 1.6; shaft.castShadow = false; group.add(shaft);
     const door = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 0.06), new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 }));
     door.position.set(0, 1.2, 0.82); group.add(door);
     const slit = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.4, 0.08), new THREE.MeshBasicMaterial({ color: 0x263238 }));
@@ -346,7 +346,7 @@ export class FurnitureFactory {
       const h = (i + 1) * stepHeight;
       const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, h, stepDepth), stairMat);
       stepMesh.position.set(0, h / 2, -0.7 + (i * stepDepth));
-      stepMesh.castShadow = true; group.add(stepMesh);
+      stepMesh.castShadow = false; group.add(stepMesh);
     }
 
     const railMat = new THREE.MeshStandardMaterial({ color: signColor, roughness: 0.3, metalness: 0.5 });
