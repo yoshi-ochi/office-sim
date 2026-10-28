@@ -87,7 +87,7 @@ class OfficeSimApp {
     this.scene.add(this.gridHelper);
 
     this.player = new Player(this.scene);
-    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 0.8);
+    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 1.8);
 
     this.sheetService = new SheetService(CONFIG.GAS_API_URL);
     this.minimap = new Minimap('minimap-canvas');
@@ -175,7 +175,7 @@ class OfficeSimApp {
     if (floorId === 6) {
       return [
         { type: 'desk_150_80', x: -4, z: -4, rotation: 0, role: '自席', person: '自分', isMySeat: true, shiftWeekday: '09:00-18:00', extensionNumber: '6101' },
-        { type: 'chair', x: -4, z: -3.2, rotation: 0 },
+        { type: 'chair', x: -4, z: -4.8, rotation: 0 },
         { type: 'phone', x: -4.6, z: -4, rotation: 0, role: '内線電話', extensionNumber: '6101' },
         { type: 'printer_desk', x: -4, z: -4, rotation: 0, role: '自席プリンター', modelNumber: 'CANON LBP621C', tonerType: 'CRG-054H' },
         { type: 'board', x: -2.8, z: -4.6, rotation: 0, role: '業務連絡掲示板' },
@@ -207,7 +207,7 @@ class OfficeSimApp {
       if (select) select.value = String(this.mySeatFloor);
       this.loadFloor(this.mySeatFloor);
     }
-    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 0.8);
+    this.player.position.set(this.mySeatPos.x, 0, this.mySeatPos.z + 1.8);
     this.player.targetRotation = Math.PI;
     this.updateCamera(this.player.position.x, this.player.position.z);
   }
@@ -1085,3 +1085,5 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
+
