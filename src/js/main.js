@@ -21,9 +21,9 @@ class OfficeSimApp {
     this.isDragging = false;
     this.boxHelper = null;
 
-    this.cameraAngle = Math.PI / 4;
-    this.isoAngleV = Math.asin(1 / Math.sqrt(3)); // 厳密なアイソメ角 (35.264度)
-    this.cameraRadius = 35.0;
+    this.cameraAngle = Math.PI / 4; this.cameraPitch = 0.58; // 自然な見下ろし角
+    
+    this.cameraDistance = 26.0;
     this.isRotatingCamera = false;
     this.pointerStartPos = { x: 0, y: 0 };
     this.hasMovedPointer = false;
@@ -69,9 +69,8 @@ class OfficeSimApp {
     this.scene.background = new THREE.Color(theme.SCENE_BG);
 
     const aspect = (window.innerWidth && window.innerHeight) ? (window.innerWidth / window.innerHeight) : 1;
-    const d = CONFIG.CAMERA_VIEW_SIZE || 15;
-    this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, -100, 1000);
-    this.camera.zoom = 1.0;
+    // 視野角45度の透視投影カメラ（歪みのない自然な遠近パース）
+    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
     this.updateCamera(this.mySeatPos.x, this.mySeatPos.z);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -119,16 +118,16 @@ class OfficeSimApp {
     const validX = (typeof targetX === 'number' && !isNaN(targetX)) ? targetX : 0;
     const validZ = (typeof targetZ === 'number' && !isNaN(targetZ)) ? targetZ : 0;
 
-    // 正角アイソメトリック比率の計算
-    const distH = this.cameraRadius * Math.cos(this.isoAngleV);
-    const heightY = this.cameraRadius * Math.sin(this.isoAngleV);
+    // 水平線上に消失点を作る安定したカメラ座標
+    const distH = this.cameraDistance * Math.cos(this.cameraPitch);
+    const heightY = Math.max(8.0, this.cameraDistance * Math.sin(this.cameraPitch));
 
     const cx = validX + distH * Math.sin(this.cameraAngle);
     const cy = heightY;
     const cz = validZ + distH * Math.cos(this.cameraAngle);
 
     this.camera.position.set(cx, cy, cz);
-    this.camera.lookAt(validX, 0.7, validZ);
+    this.camera.lookAt(validX, 0.8, validZ);
   }
 
   checkCollision(px, pz) {
@@ -627,18 +626,13 @@ class OfficeSimApp {
     window.addEventListener('wheel', e => {
       if (e.target.closest('#chat-drawer') || e.target.closest('#info-modal') || e.target.closest('#furniture-carousel-modal')) return;
       e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      this.camera.zoom = Math.max(minZoom, Math.min(maxZoom, this.camera.zoom * zoomFactor));
-      this.camera.updateProjectionMatrix();
+      // 透視投影カメラでのスムーズズームイン・ズームアウト
+      const zoomDelta = e.deltaY * 0.03;
+      this.cameraDistance = Math.max(8.0, Math.min(65.0, this.cameraDistance + zoomDelta));
     }, { passive: false });
 
     window.addEventListener('resize', () => {
-      const aspect = window.innerWidth / window.innerHeight;
-      const d = CONFIG.CAMERA_VIEW_SIZE || 15;
-      this.camera.left = -d * aspect;
-      this.camera.right = d * aspect;
-      this.camera.top = d;
-      this.camera.bottom = -d;
+      this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
@@ -1162,3 +1156,4 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
