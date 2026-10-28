@@ -83,13 +83,13 @@ class OfficeSimApp {
     this.scene.add(dirLight);
 
     const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
-    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 });
+    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xe8e6df, roughness: 0.9 });
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
     this.floorPlane.rotation.x = -Math.PI / 2;
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
 
-    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xe2e8f0, 0xf1f5f9);
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, 0xd5d2c7, 0xdfdcd2);
     subGrid.position.y = 0.003;
     this.scene.add(subGrid);
 
@@ -1189,4 +1189,5 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 

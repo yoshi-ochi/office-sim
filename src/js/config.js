@@ -15,14 +15,16 @@ export const CONFIG = {
   CAMERA_VIEW_SIZE: 15,
   GAS_API_URL: "https://script.google.com/macros/s/AKfycbzjOakTpi9SBII8IYt-G-uoBOhHzN8YfrPx3Yt861SVu_h3tgIvHahyKyIr2QcsCLgDRg/exec",
 
+
   FLOORS: [
-    { id: 1, name: "1F エントランス・受付・新聞室", color: 0xe8ecef },
-    { id: 2, name: "2F 販売部・総務・経理", color: 0xe0e7ff },
-    { id: 3, name: "3F 編集局・連絡員席", color: 0xf5f5f0 },
-    { id: 4, name: "4F DX推進・システム", color: 0xecfdf5 },
-    { id: 5, name: "5F 制作・文化部・写真映像部", color: 0xfef3c7 },
-    { id: 6, name: "6F ニュースセンター・編制", color: 0xfce7f3 },
-    { id: 7, name: "7F 論説委員会・役員室", color: 0xf3e8ff },
-    { id: 8, name: "8F カフェ・ラウンジ", color: 0xffedd5 }
+    { id: 1, name: "1F エントランス・受付・新聞室", color: 0xe5e3dc },
+    { id: 2, name: "2F 販売部・総務・経理", color: 0xe4e2dc },
+    { id: 3, name: "3F 編集局・連絡員席", color: 0xe8e6df },
+    { id: 4, name: "4F DX推進・システム", color: 0xe6e5df },
+    { id: 5, name: "5F 制作・文化部・写真映像部", color: 0xeae7e0 },
+    { id: 6, name: "6F ニュースセンター・編制", color: 0xe8e6df }, // くすんだ黄色味のある明るめグレー
+    { id: 7, name: "7F 論説委員会・役員室", color: 0xe5e4de },
+    { id: 8, name: "8F カフェ・ラウンジ", color: 0xebe8df }
   ]
 };
+
