@@ -19,7 +19,7 @@ export class FurnitureFactory {
     if (type === 'table_low_reception') return { w: 1.2, d: 0.6 };
     if (type === 'printer_floor' || type === 'printer') return { w: 0.9, d: 0.8 };
     if (type === 'elevator') return { w: 2.2, d: 1.6 };
-    if (type.includes('stairs')) return { w: 1.6, d: 2.4 };
+    if (type.includes('stairs')) return { w: 1.6, d: 2.2 };
     return { w: 0.8, d: 0.8 };
   }
 
@@ -309,7 +309,7 @@ export class FurnitureFactory {
     return group;
   }
 
-  // ★ 上り階段: 手前が低い1段目、奥へ登っていく
+  // ★ 上り階段: 手前が低い段、奥へ向かって登っていく
   static buildStairsUp() {
     const group = new THREE.Group();
     const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.4;
@@ -341,20 +341,20 @@ export class FurnitureFactory {
     return group;
   }
 
-  // ★ 下り階段: フタを全廃し、地下へ下りる段差を完全可視化（奥へ暗くフェード）
+  // ★ 下り階段: フタを完全撤去。地下へ下る段差が直接見える立体構造
   static buildStairsDown() {
     const group = new THREE.Group();
     const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.35;
 
     // 1. 地下の立体ピット壁（奥壁・両側壁・底面）
-    const pitMat = new THREE.MeshStandardMaterial({ color: 0x111622, roughness: 0.9 });
+    const pitMat = new THREE.MeshStandardMaterial({ color: 0x1e2430, roughness: 0.8 });
     
     // 奥の壁
     const wallBack = new THREE.Mesh(new THREE.BoxGeometry(width + 0.08, 1.6, 0.04), pitMat);
     wallBack.position.set(0, -0.8, -1.0); group.add(wallBack);
 
-    // 左右の壁（地下部分）
-    [-0.70, 0.70].forEach(x => {
+    // 左右の壁
+    [-0.69, 0.69].forEach(x => {
       const wallSide = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.6, 2.0), pitMat);
       wallSide.position.set(x, -0.8, 0); group.add(wallSide);
     });
@@ -363,9 +363,8 @@ export class FurnitureFactory {
     const pitFloor = new THREE.Mesh(new THREE.BoxGeometry(width + 0.08, 0.04, 2.0), pitMat);
     pitFloor.position.set(0, -1.6, 0); group.add(pitFloor);
 
-    // 2. 下っていく階段ステップ（手前は明るく見え、奥に向かって暗くフェードする立体）
-    // 手前 (i=0) は床面の高さ直下からスタートし、奥に向かって一段ずつ深くなる
-    const stepColors = [0x9ba4af, 0x828b96, 0x69727d, 0x515a65, 0x3a424d, 0x252c36];
+    // 2. 下っていく階段ステップ（手前は明色、奥へ行くほど暗くフェード）
+    const stepColors = [0xa6b0bc, 0x8e98a3, 0x757f8a, 0x5d6671, 0x464e58, 0x30363f];
 
     for (let i = 0; i < steps; i++) {
       const stepY = -((i + 1) * stepHeight);
@@ -373,7 +372,7 @@ export class FurnitureFactory {
 
       const mat = new THREE.MeshStandardMaterial({
         color: stepColors[i],
-        roughness: 0.45,
+        roughness: 0.4,
         metalness: 0.1
       });
 
@@ -382,10 +381,10 @@ export class FurnitureFactory {
       stepMesh.position.set(0, stepY + 0.09, stepZ);
       group.add(stepMesh);
 
-      // 各段差の視認エッジライン（白色ハイライト）
+      // 各段差の視認エッジライン（明色ハイライト）
       const edge = new THREE.Mesh(
         new THREE.BoxGeometry(width, 0.02, 0.025),
-        new THREE.MeshBasicMaterial({ color: 0xdbe2ea })
+        new THREE.MeshBasicMaterial({ color: 0xe2e8f0 })
       );
       edge.position.set(0, stepY + 0.18, stepZ + (stepDepth / 2));
       group.add(edge);
@@ -393,7 +392,7 @@ export class FurnitureFactory {
 
     // 3. 地上の低背ガードフェンス（高さ 0.38m）
     const fenceMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.6 });
-    [-0.70, 0.70].forEach(x => {
+    [-0.69, 0.69].forEach(x => {
       const sideFence = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.38, 2.0), fenceMat);
       sideFence.position.set(x, 0.19, 0); group.add(sideFence);
     });

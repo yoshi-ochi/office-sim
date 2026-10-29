@@ -70,21 +70,22 @@ class OfficeSimApp {
 
     this.floorTilesGroup = new THREE.Group();
     const theme = CONFIG.FLOOR_THEME || { FLOOR_COLOR: 0x828890 };
-    const tileSize = 2.0; // 2m x 2m のオフィスフロアタイル
+    const tileSize = 1.0; // 1m x 1m のフロアタイル
     const halfField = CONFIG.FIELD_SIZE / 2; // 40m
 
-    const tileGeo = new THREE.PlaneGeometry(tileSize - 0.04, tileSize - 0.04);
+    // タイル本体（目地を表現するために0.98mに設定）
+    const tileGeo = new THREE.PlaneGeometry(tileSize - 0.02, tileSize - 0.02);
     const tileMat = new THREE.MeshLambertMaterial({
       color: theme.FLOOR_COLOR,
       side: THREE.FrontSide
     });
 
-    // 下り階段の除外バウンディングボックス一覧
+    // 下り階段の除外範囲
     const excludeZones = stairsDownObjects.map(obj => {
       const p = obj.position;
       return {
-        minX: p.x - 0.9,
-        maxX: p.x + 0.9,
+        minX: p.x - 0.85,
+        maxX: p.x + 0.85,
         minZ: p.z - 1.25,
         maxZ: p.z + 1.25
       };
@@ -115,9 +116,7 @@ class OfficeSimApp {
     const container = document.getElementById('canvas-container');
     const theme = CONFIG.FLOOR_THEME || {
       FLOOR_COLOR: 0x828890,
-      SCENE_BG: 0xb0b7be,
-      GRID_SUB: 0x6e747c,
-      GRID_MAJOR: 0x4a515a
+      SCENE_BG: 0xb0b7be
     };
 
     this.scene = new THREE.Scene();
@@ -133,13 +132,13 @@ class OfficeSimApp {
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.55);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
     dirLight.position.set(45, 60, 45);
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    // タイル床の初期配置
+    // タイル床の初期配置（GridHelperは全廃）
     this.buildFloorTiles([]);
 
     this.player = new Player(this.scene);
@@ -241,7 +240,7 @@ class OfficeSimApp {
         this.scene.add(dn); this.floorObjects.push(dn);
       }
 
-      // ★ 下り階段の領域だけ床タイルを抜いたフロアを構築
+      // ★ 下り階段の位置だけ床タイルを抜いたフロアを生成
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
       this.buildFloorTiles(downStairs);
 
@@ -434,7 +433,6 @@ class OfficeSimApp {
     }
   }
 
-  // ★ 階移動モーション（evenodd 型抜き暗転 ＆ ジワリ明転）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
@@ -694,19 +692,21 @@ class OfficeSimApp {
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        const hits = this.raycaster.intersectObjects(this.floorTilesGroup.children);
-        if (hits.length > 0) {
-          const p = hits[0].point;
-          const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
+        if (this.floorTilesGroup) {
+          const hits = this.raycaster.intersectObjects(this.floorTilesGroup.children);
+          if (hits.length > 0) {
+            const p = hits[0].point;
+            const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
 
-          const snapStep = e.shiftKey ? 0.01 : (CONFIG.GRID_SIZE || 0.1);
-          const snapX = Math.max(-max, Math.min(max, Math.round(p.x / snapStep) * snapStep));
-          const snapZ = Math.max(-max, Math.min(max, Math.round(p.z / snapStep) * snapStep));
+            const snapStep = e.shiftKey ? 0.01 : (CONFIG.GRID_SIZE || 0.1);
+            const snapX = Math.max(-max, Math.min(max, Math.round(p.x / snapStep) * snapStep));
+            const snapZ = Math.max(-max, Math.min(max, Math.round(p.z / snapStep) * snapStep));
 
-          this.selectedObject.position.x = snapX;
-          this.selectedObject.position.z = snapZ;
-          if (this.boxHelper) this.boxHelper.update();
-          this.editor.showSnapGuide(snapX, snapZ, true);
+            this.selectedObject.position.x = snapX;
+            this.selectedObject.position.z = snapZ;
+            if (this.boxHelper) this.boxHelper.update();
+            this.editor.showSnapGuide(snapX, snapZ, true);
+          }
         }
         return;
       }
