@@ -18,7 +18,7 @@ export class FurnitureFactory {
     if (type === 'sofa_reception') return { w: 1.9, d: 0.8 };
     if (type === 'table_low_reception') return { w: 1.2, d: 0.6 };
     if (type === 'printer_floor' || type === 'printer') return { w: 0.9, d: 0.8 };
-    if (type === 'elevator') return { w: 2.2, d: 1.6 };
+    if (type === 'elevator') return { w: 2.2, d: 1.8 };
     if (type === 'stairs_up') return { w: 1.4, d: 2.0 };
     if (type === 'stairs_down') return { w: 1.4, d: 2.0 };
     return { w: 0.8, d: 0.8 };
@@ -287,26 +287,62 @@ export class FurnitureFactory {
     return group;
   }
 
+  // ★ 空洞キャビン＆両開きスライド扉を備えたエレベーター
   static buildElevator(parentGroup) {
     const group = new THREE.Group();
-    const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 1.6), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.3 }));
-    shaft.position.y = 1.6; group.add(shaft);
+    const w = 2.2, h = 3.0, d = 1.8;
 
-    const interior = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.4, 1.3), new THREE.MeshBasicMaterial({ color: 0x1e293b }));
-    interior.position.set(0, 1.2, 0.1); group.add(interior);
+    const outerMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.3 });
+    const innerMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.1 });
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
 
+    // 1. 空洞キャビン（床・天井・奥壁・左右壁）
+    const cabFloor = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.04, d - 0.1), floorMat);
+    cabFloor.position.set(0, 0.02, 0); group.add(cabFloor);
+
+    const ceiling = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, d), outerMat);
+    ceiling.position.set(0, h, 0); group.add(ceiling);
+
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), innerMat);
+    backWall.position.set(0, h / 2, -d / 2); group.add(backWall);
+
+    [-w / 2, w / 2].forEach(x => {
+      const sideWall = new THREE.Mesh(new THREE.BoxGeometry(0.08, h, d), innerMat);
+      sideWall.position.set(x, h / 2, 0); group.add(sideWall);
+    });
+
+    // 正面上部枠
+    const topFrame = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, 0.08), outerMat);
+    topFrame.position.set(0, h - 0.25, d / 2); group.add(topFrame);
+
+    // 正面左右の戸袋壁
+    const doorW = 0.65;
+    const doorH = h - 0.5;
+    const jambW = (w - doorW * 2) / 2;
+    [-w / 2 + jambW / 2, w / 2 - jambW / 2].forEach(x => {
+      const jamb = new THREE.Mesh(new THREE.BoxGeometry(jambW, doorH, 0.08), outerMat);
+      jamb.position.set(x, doorH / 2, d / 2); group.add(jamb);
+    });
+
+    // 2. 両開きスライド扉（左扉・右扉）
     const doorMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 });
-    const doorL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.38, 0.05), doorMat);
-    doorL.position.set(-0.35, 1.2, 0.8); group.add(doorL);
 
-    const doorR = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.38, 0.05), doorMat);
-    doorR.position.set(0.35, 1.2, 0.8); group.add(doorR);
+    const doorL = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.03), doorMat);
+    doorL.position.set(-doorW / 2, doorH / 2, d / 2 - 0.02);
+    group.add(doorL);
+
+    const doorR = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.03), doorMat);
+    doorR.position.set(doorW / 2, doorH / 2, d / 2 - 0.02);
+    group.add(doorR);
 
     parentGroup.userData.doorL = doorL;
     parentGroup.userData.doorR = doorR;
+    parentGroup.userData.doorWidth = doorW;
 
-    const ind = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.25, 0.08), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
-    ind.position.set(0, 2.65, 0.83); group.add(ind);
+    // 3. インジケーターランプ
+    const ind = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
+    ind.position.set(0, h - 0.25, d / 2 + 0.05); group.add(ind);
+
     return group;
   }
 
@@ -342,7 +378,7 @@ export class FurnitureFactory {
     return group;
   }
 
-  // ★ 下り階段: 余計なフタなし。手前から地下へ下る立体段差と、奥壁・側壁・低背フェンス
+  // ★ 下り階段: フタなし。手前から地下へ下る立体段差と、奥壁・側壁・低背フェンス
   static buildStairsDown() {
     const group = new THREE.Group();
     const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.35;
@@ -364,7 +400,7 @@ export class FurnitureFactory {
     const pitFloor = new THREE.Mesh(new THREE.BoxGeometry(width + 0.04, 0.04, 1.88), pitMat);
     pitFloor.position.set(0, -1.6, 0.02); group.add(pitFloor);
 
-    // 2. 下っていく階段ステップ（手前は明るくエッジが見え、奥に行くほど暗く沈む）
+    // 2. 下っていく階段ステップ
     const stepColors = [0x9ba4af, 0x828b96, 0x69727d, 0x515a65, 0x3a424d, 0x252c36];
     for (let i = 0; i < steps; i++) {
       const stepY = -((i + 1) * stepHeight);
@@ -380,7 +416,6 @@ export class FurnitureFactory {
       stepMesh.position.set(0, stepY + 0.09, stepZ);
       group.add(stepMesh);
 
-      // 各段差の視認エッジライン（白色ハイライト）
       const edge = new THREE.Mesh(
         new THREE.BoxGeometry(width, 0.02, 0.025),
         new THREE.MeshBasicMaterial({ color: 0xdbe2ea })
@@ -409,4 +444,3 @@ export class FurnitureFactory {
     mesh.position.y = 0.4; return mesh;
   }
 }
-

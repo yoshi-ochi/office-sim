@@ -17,6 +17,7 @@ class OfficeSimApp {
     this.floorObjects = [];
     this.npcObjects = [];
     this.floorPlane = null;
+    this.floorMat = null;
     this.editGridGroup = null;
     this.isEditMode = false;
     this.selectedObject = null;
@@ -59,7 +60,7 @@ class OfficeSimApp {
     setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
-  // ★ 複数の下り階段すべてに対応した穴あき床メッシュの動的生成
+  // ★ 複数個の下り階段すべてに対応する物理的な床の穴あけ
   createHoleFloor(stairsDownObjects = []) {
     if (this.floorPlane) {
       this.scene.remove(this.floorPlane);
@@ -75,13 +76,13 @@ class OfficeSimApp {
     shape.lineTo(-S,  S);
     shape.closePath();
 
-    // ★ 存在する「すべての下り階段」に対して穴 (時計回り CW) を開ける
+    // floorPlane.rotation.x = -Math.PI / 2 なので:
+    // 3D空間の (X, Z) は Shape空間の (X, -Z) に対応
     stairsDownObjects.forEach(obj => {
-      const hw = 0.68;
-      const zMin = -0.95;
-      const zMax = 0.92;
+      const hw = 0.69;
+      const zMin = -0.93;
+      const zMax = 0.95;
 
-      // 階段ローカル座標の4隅
       const localCorners = [
         new THREE.Vector3(-hw, 0, zMin),
         new THREE.Vector3( hw, 0, zMin),
@@ -89,11 +90,10 @@ class OfficeSimApp {
         new THREE.Vector3(-hw, 0, zMax)
       ];
 
-      // 階段のワールド位置・回転を反映した4頂点を計算
       obj.updateMatrixWorld(true);
       const worldCorners = localCorners.map(c => c.applyMatrix4(obj.matrixWorld));
 
-      // 3D空間の (X, Z) から Shape空間の (X, -Z) にマッピング (時計回り)
+      // 穴 (時計回り CW)
       const hole = new THREE.Path();
       hole.moveTo(worldCorners[0].x, -worldCorners[0].z);
       hole.lineTo(worldCorners[1].x, -worldCorners[1].z);
@@ -148,19 +148,15 @@ class OfficeSimApp {
     this.editGridGroup = new THREE.Group();
 
     // 0.5m サブグリッド (80m ÷ 0.5m = 160分割)
-    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 160, 0x38bdf8, 0x94a3b8);
-    subGrid.position.y = 0.01;
-    subGrid.material.depthWrite = false;
-    subGrid.material.transparent = true;
-    subGrid.material.opacity = 0.45;
-    subGrid.renderOrder = 90;
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 160, 0x60a5fa, 0x93c5fd);
+    subGrid.position.y = 0.005;
+    subGrid.renderOrder = 50;
     this.editGridGroup.add(subGrid);
 
     // 5m メジャーグリッド (80m ÷ 5m = 16分割)
-    const majorGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 16, 0x0284c7, 0x1e293b);
-    majorGrid.position.y = 0.012;
-    majorGrid.material.depthWrite = false;
-    majorGrid.renderOrder = 91;
+    const majorGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 16, 0x1d4ed8, 0x1e3a8a);
+    majorGrid.position.y = 0.007;
+    majorGrid.renderOrder = 51;
     this.editGridGroup.add(majorGrid);
 
     this.editGridGroup.visible = false;
@@ -241,7 +237,6 @@ class OfficeSimApp {
         layout = this.getDefaultLayoutForFloor(floorId);
       }
 
-      // 1. 家具・階段オブジェクトを配置
       layout.forEach(data => {
         const furniture = FurnitureFactory.create(data.type, data);
         this.scene.add(furniture);
@@ -266,7 +261,7 @@ class OfficeSimApp {
         this.scene.add(dn); this.floorObjects.push(dn);
       }
 
-      // 2. すべての下り階段の位置をくり抜いた床を生成
+      // ★ すべての下り階段の位置を物理的にくり抜く
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
       this.createHoleFloor(downStairs);
 
@@ -381,7 +376,6 @@ class OfficeSimApp {
     this.floorObjects.push(newObj);
     this.selectFurniture(newObj);
 
-    // ★ 下り階段が新しく設置されたら床の穴を再生成
     if (type === 'stairs_down') {
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
       this.createHoleFloor(downStairs);
@@ -460,36 +454,11 @@ class OfficeSimApp {
     }
   }
 
+  // ★ 階移動モーション（階段移動と暗転の完全並行化 ＆ エレベーター両扉スライド乗車）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
     this.closeModal();
-
-    if (interactObj && interactObj.userData.isElevator) {
-      const doorL = interactObj.userData.doorL;
-      const doorR = interactObj.userData.doorR;
-      if (doorL && doorR) {
-        for (let t = 0; t <= 15; t++) {
-          doorL.position.x = -0.35 - (t / 15) * 0.45;
-          doorR.position.x = 0.35 + (t / 15) * 0.45;
-          await new Promise(r => setTimeout(r, 20));
-        }
-      }
-      const startZ = this.player.position.z;
-      for (let t = 0; t <= 20; t++) {
-        this.player.position.z = startZ - (t / 20) * 1.0;
-        this.player.position.y = (t % 4 < 2) ? 0.05 : 0;
-        await new Promise(r => setTimeout(r, 25));
-      }
-    } else if (interactObj && (interactObj.userData.isStairsDown || interactObj.userData.isStairsUp)) {
-      const isDown = interactObj.userData.isStairsDown;
-      const startZ = this.player.position.z;
-      for (let t = 0; t <= 25; t++) {
-        this.player.position.z = startZ - (t / 25) * 1.2;
-        this.player.position.y += isDown ? -0.025 : 0.035;
-        await new Promise(r => setTimeout(r, 25));
-      }
-    }
 
     const cvs = document.getElementById('transition-canvas');
     const ctx = cvs ? cvs.getContext('2d') : null;
@@ -498,63 +467,116 @@ class OfficeSimApp {
       cvs.width = window.innerWidth;
       cvs.height = window.innerHeight;
       cvs.style.display = 'block';
-
-      const p = this.player.position.clone();
-      p.y += 0.85;
-      p.project(this.camera);
-      const cx = (p.x * 0.5 + 0.5) * cvs.width;
-      const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
-      const maxRadius = Math.hypot(cvs.width, cvs.height);
-
-      const drawCutoutHole = (r) => {
-        ctx.clearRect(0, 0, cvs.width, cvs.height);
-        ctx.fillStyle = '#0b0f19';
-        ctx.beginPath();
-        ctx.rect(0, 0, cvs.width, cvs.height);
-        if (r > 0) {
-          ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
-        }
-        ctx.fill('evenodd');
-      };
-
-      const duration1 = 650;
-      const startT1 = performance.now();
-      await new Promise(resolve => {
-        const anim1 = (now) => {
-          const progress = Math.min(1, (now - startT1) / duration1);
-          const ease = 1 - Math.pow(1 - progress, 3);
-          const currentR = maxRadius - (maxRadius - 45) * ease;
-          drawCutoutHole(currentR);
-          if (progress < 1) requestAnimationFrame(anim1);
-          else resolve();
-        };
-        requestAnimationFrame(anim1);
-      });
-
-      await new Promise(r => setTimeout(r, 120));
-
-      const duration2 = 240;
-      const startT2 = performance.now();
-      await new Promise(resolve => {
-        const anim2 = (now) => {
-          const progress = Math.min(1, (now - startT2) / duration2);
-          const currentR = 45 * (1 - progress);
-          drawCutoutHole(currentR);
-          if (progress < 1) requestAnimationFrame(anim2);
-          else resolve();
-        };
-        requestAnimationFrame(anim2);
-      });
-
-      drawCutoutHole(0);
     }
 
+    const drawCutoutHole = (cx, cy, r) => {
+      if (!ctx || !cvs) return;
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      ctx.fillStyle = '#0b0f19';
+      ctx.beginPath();
+      ctx.rect(0, 0, cvs.width, cvs.height);
+      if (r > 0) {
+        ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+      }
+      ctx.fill('evenodd');
+    };
+
+    // 1. エレベーター演出（扉スライド開 $\rightarrow$ 中へ入る $\rightarrow$ 暗転）
+    if (interactObj && interactObj.userData.isElevator) {
+      const doorL = interactObj.userData.doorL;
+      const doorR = interactObj.userData.doorR;
+      const dw = interactObj.userData.doorWidth || 0.65;
+
+      // 扉スライドオープン
+      for (let t = 0; t <= 18; t++) {
+        const o = (t / 18) * (dw - 0.05);
+        if (doorL) doorL.position.x = -dw / 2 - o;
+        if (doorR) doorR.position.x =  dw / 2 + o;
+        await new Promise(r => setTimeout(r, 20));
+      }
+
+      // キャラクターが中へ歩いて乗り込む
+      const startZ = this.player.position.z;
+      const targetZ = interactObj.position.z;
+      for (let t = 0; t <= 22; t++) {
+        this.player.position.z = startZ + (targetZ - startZ) * (t / 22);
+        this.updateCamera(this.player.position.x, this.player.position.z);
+        await new Promise(r => setTimeout(r, 22));
+      }
+
+      // 暗転（キャラ中心に縮小）
+      if (cvs && ctx) {
+        const maxRadius = Math.hypot(cvs.width, cvs.height);
+        const p = this.player.position.clone(); p.y += 0.85; p.project(this.camera);
+        const cx = (p.x * 0.5 + 0.5) * cvs.width;
+        const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
+
+        const dur = 450; const st = performance.now();
+        await new Promise(resolve => {
+          const a = now => {
+            const pr = Math.min(1, (now - st) / dur);
+            const r = maxRadius * (1 - pr);
+            drawCutoutHole(cx, cy, r);
+            if (pr < 1) requestAnimationFrame(a); else resolve();
+          };
+          requestAnimationFrame(a);
+        });
+        drawCutoutHole(cx, cy, 0);
+      }
+
+    // 2. 階段演出（登る／下りる最中に画面暗転が並行して狭まり、止まる前に完全暗転）
+    } else if (interactObj && (interactObj.userData.isStairsDown || interactObj.userData.isStairsUp)) {
+      const isDown = interactObj.userData.isStairsDown;
+      const startZ = this.player.position.z;
+      const targetZ = startZ - 1.2;
+      const totalSteps = 30;
+
+      const maxRadius = cvs ? Math.hypot(cvs.width, cvs.height) : 1000;
+
+      // 移動しながら同時に毎フレーム暗転円を縮小（並行同期処理）
+      for (let t = 0; t <= totalSteps; t++) {
+        const ratio = t / totalSteps;
+        this.player.position.z = startZ + (targetZ - startZ) * ratio;
+        this.player.position.y += isDown ? -0.025 : 0.035;
+        this.updateCamera(this.player.position.x, this.player.position.z);
+
+        if (cvs && ctx) {
+          const p = this.player.position.clone();
+          p.y += 0.85;
+          p.project(this.camera);
+          const cx = (p.x * 0.5 + 0.5) * cvs.width;
+          const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
+
+          // 移動前半（0%〜75%）で画面外からキャラ周囲（45px）へ急速縮小
+          // 移動後半（75%〜100%）でキャラクターごと完全に暗転（0px）へ吸い込まれる
+          let currentR;
+          if (ratio < 0.75) {
+            const sub = ratio / 0.75;
+            const ease = 1 - Math.pow(1 - sub, 3);
+            currentR = maxRadius - (maxRadius - 45) * ease;
+          } else {
+            const sub = (ratio - 0.75) / 0.25;
+            currentR = 45 * (1 - sub);
+          }
+          drawCutoutHole(cx, cy, currentR);
+        }
+
+        await new Promise(r => setTimeout(r, 22));
+      }
+
+      if (cvs && ctx) {
+        drawCutoutHole(0, 0, 0);
+      }
+    }
+
+    // 3. 完全暗転の裏でフロア読み込み
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
 
     await this.loadFloor(targetFloor, true);
 
+    // 4. 移動先フロアの出現初期位置セット
     if (arrivalType === 'stairs_down') {
       this.player.position.set(12, 1.08, -16 - 0.75);
     } else if (arrivalType === 'stairs_up') {
@@ -564,46 +586,55 @@ class OfficeSimApp {
     } else {
       this.player.position.set(0, 0, 0);
     }
-
     this.updateCamera(this.player.position.x, this.player.position.z);
 
+    // 5. 新フロアへの出現モーションとジワリ明転
     const fadeDuration = 800;
     const startFade = performance.now();
 
     const arrivalMotionPromise = (async () => {
       if (arrivalType === 'stairs_down') {
-        const startZ = -16 - 0.75;
-        const targetZ = -16 + 1.2;
+        const sZ = -16 - 0.75; const eZ = -16 + 1.2;
         for (let t = 0; t <= 30; t++) {
-          const ratio = t / 30;
-          this.player.position.z = startZ + (targetZ - startZ) * ratio;
-          this.player.position.y = Math.max(0, 1.08 * (1 - ratio));
+          const r = t / 30;
+          this.player.position.z = sZ + (eZ - sZ) * r;
+          this.player.position.y = Math.max(0, 1.08 * (1 - r));
           this.updateCamera(this.player.position.x, this.player.position.z);
-          await new Promise(r => setTimeout(r, 26));
+          await new Promise(res => setTimeout(res, 24));
         }
       } else if (arrivalType === 'stairs_up') {
-        const startZ = -16 - 0.75;
-        const targetZ = -16 + 1.2;
+        const sZ = -16 - 0.75; const eZ = -16 + 1.2;
         for (let t = 0; t <= 30; t++) {
-          const ratio = t / 30;
-          this.player.position.z = startZ + (targetZ - startZ) * ratio;
-          this.player.position.y = Math.min(0, -1.08 * (1 - ratio));
+          const r = t / 30;
+          this.player.position.z = sZ + (eZ - sZ) * r;
+          this.player.position.y = Math.min(0, -1.08 * (1 - r));
           this.updateCamera(this.player.position.x, this.player.position.z);
-          await new Promise(r => setTimeout(r, 26));
+          await new Promise(res => setTimeout(res, 24));
         }
       } else if (arrivalType === 'elevator') {
         const elv = this.floorObjects.find(o => o.userData.isElevator);
         if (elv && elv.userData.doorL && elv.userData.doorR) {
+          const dw = elv.userData.doorWidth || 0.65;
           for (let t = 0; t <= 15; t++) {
-            elv.userData.doorL.position.x = -0.35 - (t / 15) * 0.45;
-            elv.userData.doorR.position.x = 0.35 + (t / 15) * 0.45;
-            await new Promise(r => setTimeout(r, 20));
+            const o = (t / 15) * (dw - 0.05);
+            elv.userData.doorL.position.x = -dw / 2 - o;
+            elv.userData.doorR.position.x =  dw / 2 + o;
+            await new Promise(res => setTimeout(res, 18));
           }
         }
-        for (let t = 0; t <= 20; t++) {
-          this.player.position.z = -16 + (t / 20) * 1.5;
+        for (let t = 0; t <= 22; t++) {
+          this.player.position.z = -16 + (t / 22) * 1.5;
           this.updateCamera(this.player.position.x, this.player.position.z);
-          await new Promise(r => setTimeout(r, 25));
+          await new Promise(res => setTimeout(res, 22));
+        }
+        if (elv && elv.userData.doorL && elv.userData.doorR) {
+          const dw = elv.userData.doorWidth || 0.65;
+          for (let t = 15; t >= 0; t--) {
+            const o = (t / 15) * (dw - 0.05);
+            elv.userData.doorL.position.x = -dw / 2 - o;
+            elv.userData.doorR.position.x =  dw / 2 + o;
+            await new Promise(res => setTimeout(res, 18));
+          }
         }
       }
       this.player.position.y = 0;
@@ -611,14 +642,13 @@ class OfficeSimApp {
 
     if (cvs && ctx) {
       await new Promise(resolve => {
-        const animFade = (now) => {
-          const progress = Math.min(1, (now - startFade) / fadeDuration);
-          const alpha = Math.max(0, 1 - progress);
+        const animFade = now => {
+          const pr = Math.min(1, (now - startFade) / fadeDuration);
+          const alpha = Math.max(0, 1 - pr);
           ctx.clearRect(0, 0, cvs.width, cvs.height);
           ctx.fillStyle = 'rgba(11, 15, 25, ' + alpha.toFixed(3) + ')';
           ctx.fillRect(0, 0, cvs.width, cvs.height);
-          if (progress < 1) requestAnimationFrame(animFade);
-          else resolve();
+          if (pr < 1) requestAnimationFrame(animFade); else resolve();
         };
         requestAnimationFrame(animFade);
       });
@@ -797,7 +827,6 @@ class OfficeSimApp {
 
     window.addEventListener('pointerup', () => {
       if (this.isEditMode && this.isDragging && this.selectedObject) {
-        // 下り階段を移動した場合、床の穴を追従して再構築
         if (this.selectedObject.userData.isStairsDown) {
           const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
           this.createHoleFloor(downStairs);
@@ -1376,4 +1405,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
