@@ -180,11 +180,10 @@ class OfficeSimApp {
       const localX = dx * Math.cos(rad) - dz * Math.sin(rad);
       const localZ = dx * Math.sin(rad) + dz * Math.cos(rad);
 
-      // 階段・エレベーターの正面入口側（localZ > 0.15）は壁でブロックせず踏み込みを許可
-      if (d.isStairsUp || d.isStairsDown || d.isElevator) {
-        const doorClearWidth = d.isElevator ? 0.68 : (halfW - 0.05);
-        if (localZ > 0.15 && Math.abs(localX) <= doorClearWidth) {
-          continue; // 正面入口の歩行は邪魔せずスムーズに接近させる
+      // 階段の正面入口のみ踏み込みを許可（エレベーターは最前面の透明板で均一に止める）
+      if (d.isStairsUp || d.isStairsDown) {
+        if (localZ > 0.35 && Math.abs(localX) < halfW - 0.05) {
+          continue;
         }
       }
 
@@ -1438,6 +1437,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
