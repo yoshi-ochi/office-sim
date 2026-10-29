@@ -409,3 +409,4 @@ export class FurnitureFactory {
     mesh.position.y = 0.4; return mesh;
   }
 }
+
