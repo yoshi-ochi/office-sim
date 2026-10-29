@@ -337,11 +337,11 @@ export class FurnitureFactory {
     const ind = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
     ind.position.set(0, h - 0.25, d / 2 + 0.05); group.add(ind);
 
-    // ★ 正面入口の透明トリガー板 (扉の足元: z = d/2 + 0.3)
-    const triggerGeo = new THREE.BoxGeometry(doorW * 1.8, 0.6, 0.5);
+    // ★ 正面入口の透明トリガー板 (扉の手前足元にしっかり張り出し: z = d/2 + 0.38)
+    const triggerGeo = new THREE.BoxGeometry(doorW * 2.0, 0.8, 0.75);
     const triggerMat = new THREE.MeshBasicMaterial({ visible: false });
     const triggerMesh = new THREE.Mesh(triggerGeo, triggerMat);
-    triggerMesh.position.set(0, 0.3, d / 2 + 0.3);
+    triggerMesh.position.set(0, 0.4, d / 2 + 0.38);
     group.add(triggerMesh);
     parentGroup.userData.entryTrigger = triggerMesh;
 
@@ -444,3 +444,4 @@ export class FurnitureFactory {
     mesh.position.y = 0.4; return mesh;
   }
 }
+
