@@ -16,7 +16,7 @@ class OfficeSimApp {
 
     this.floorObjects = [];
     this.npcObjects = [];
-    this.floorTilesGroup = null;
+    this.floorSurfacesGroup = null;
     this.isEditMode = false;
     this.selectedObject = null;
     this.isDragging = false;
@@ -58,58 +58,89 @@ class OfficeSimApp {
     setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
-  // ★ 下り階段の領域だけ床を抜いたフロアタイル敷き詰め生成
-  buildFloorTiles(stairsDownObjects = []) {
-    if (this.floorTilesGroup) {
-      this.scene.remove(this.floorTilesGroup);
-      this.floorTilesGroup.traverse(child => {
+  // ★ 新描画順序: 階段以外の範囲を完全に隙間なく敷き詰める分割床面
+  buildFittedFloorSurfaces(stairsDownObjects = []) {
+    if (this.floorSurfacesGroup) {
+      this.scene.remove(this.floorSurfacesGroup);
+      this.floorSurfacesGroup.traverse(child => {
         if (child.geometry) child.geometry.dispose();
         if (child.material) child.material.dispose();
       });
     }
 
-    this.floorTilesGroup = new THREE.Group();
+    this.floorSurfacesGroup = new THREE.Group();
     const theme = CONFIG.FLOOR_THEME || { FLOOR_COLOR: 0x828890 };
-    const tileSize = 1.0; // 1m x 1m のフロアタイル
-    const halfField = CONFIG.FIELD_SIZE / 2; // 40m
-
-    // タイル本体（目地を表現するために0.98mに設定）
-    const tileGeo = new THREE.PlaneGeometry(tileSize - 0.02, tileSize - 0.02);
-    const tileMat = new THREE.MeshLambertMaterial({
+    const S = CONFIG.FIELD_SIZE / 2; // 40m
+    const floorMat = new THREE.MeshLambertMaterial({
       color: theme.FLOOR_COLOR,
       side: THREE.FrontSide
     });
 
-    // 下り階段の除外範囲
-    const excludeZones = stairsDownObjects.map(obj => {
-      const p = obj.position;
-      return {
-        minX: p.x - 0.85,
-        maxX: p.x + 0.85,
-        minZ: p.z - 1.25,
-        maxZ: p.z + 1.25
-      };
-    });
+    if (stairsDownObjects.length === 0) {
+      // 階段がないフロアは全面1枚の床
+      const fullGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
+      const fullFloor = new THREE.Mesh(fullGeo, floorMat);
+      fullFloor.rotation.x = -Math.PI / 2;
+      fullFloor.position.set(0, 0, 0);
+      this.floorSurfacesGroup.add(fullFloor);
+    } else {
+      // 下り階段がある場合: 階段の穴を囲む4つの完全密着な矩形板で床を構成
+      const st = stairsDownObjects[0];
+      const px = st.position.x;
+      const pz = st.position.z;
 
-    for (let x = -halfField + tileSize / 2; x < halfField; x += tileSize) {
-      for (let z = -halfField + tileSize / 2; z < halfField; z += tileSize) {
-        // 下り階段の穴エリアと重なるタイルは生成しない（床を完全に抜く）
-        const overlapsStairs = excludeZones.some(zone => {
-          return (x + tileSize / 2 > zone.minX && x - tileSize / 2 < zone.maxX &&
-                  z + tileSize / 2 > zone.minZ && z - tileSize / 2 < zone.maxZ);
-        });
+      // 階段の穴の境界（階段の壁・フェンスと隙間ゼロで一致）
+      const hw = 0.70; // 階段の左右幅の半分
+      const hFront = 0.96;
+      const hBack = 0.94;
 
-        if (!overlapsStairs) {
-          const tile = new THREE.Mesh(tileGeo, tileMat);
-          tile.rotation.x = -Math.PI / 2;
-          tile.position.set(x, 0, z);
-          tile.receiveShadow = false;
-          this.floorTilesGroup.add(tile);
-        }
+      const holeLeft   = px - hw;
+      const holeRight  = px + hw;
+      const holeFront  = pz + hFront; // 手前
+      const holeBack   = pz - hBack;  // 奥
+
+      // 1. 階段より左側の床
+      const wLeft = holeLeft - (-S);
+      if (wLeft > 0) {
+        const geoL = new THREE.PlaneGeometry(wLeft, CONFIG.FIELD_SIZE);
+        const meshL = new THREE.Mesh(geoL, floorMat);
+        meshL.rotation.x = -Math.PI / 2;
+        meshL.position.set(-S + wLeft / 2, 0, 0);
+        this.floorSurfacesGroup.add(meshL);
+      }
+
+      // 2. 階段より右側の床
+      const wRight = S - holeRight;
+      if (wRight > 0) {
+        const geoR = new THREE.PlaneGeometry(wRight, CONFIG.FIELD_SIZE);
+        const meshR = new THREE.Mesh(geoR, floorMat);
+        meshR.rotation.x = -Math.PI / 2;
+        meshR.position.set(holeRight + wRight / 2, 0, 0);
+        this.floorSurfacesGroup.add(meshR);
+      }
+
+      // 3. 階段の奥側の床（穴の幅のみ）
+      const dBack = holeBack - (-S);
+      if (dBack > 0) {
+        const geoB = new THREE.PlaneGeometry(hw * 2, dBack);
+        const meshB = new THREE.Mesh(geoB, floorMat);
+        meshB.rotation.x = -Math.PI / 2;
+        meshB.position.set(px, 0, -S + dBack / 2);
+        this.floorSurfacesGroup.add(meshB);
+      }
+
+      // 4. 階段の手前側の床（穴の幅のみ）
+      const dFront = S - holeFront;
+      if (dFront > 0) {
+        const geoF = new THREE.PlaneGeometry(hw * 2, dFront);
+        const meshF = new THREE.Mesh(geoF, floorMat);
+        meshF.rotation.x = -Math.PI / 2;
+        meshF.position.set(px, 0, holeFront + dFront / 2);
+        this.floorSurfacesGroup.add(meshF);
       }
     }
 
-    this.scene.add(this.floorTilesGroup);
+    this.scene.add(this.floorSurfacesGroup);
   }
 
   init() {
@@ -137,9 +168,6 @@ class OfficeSimApp {
     dirLight.position.set(45, 60, 45);
     dirLight.castShadow = false;
     this.scene.add(dirLight);
-
-    // タイル床の初期配置（GridHelperは全廃）
-    this.buildFloorTiles([]);
 
     this.player = new Player(this.scene);
     this.player.position.set(-4, 0, -1.0);
@@ -216,6 +244,7 @@ class OfficeSimApp {
         layout = this.getDefaultLayoutForFloor(floorId);
       }
 
+      // 1. まず家具・階段オブジェクトを先にすべて配置
       layout.forEach(data => {
         const furniture = FurnitureFactory.create(data.type, data);
         this.scene.add(furniture);
@@ -240,9 +269,9 @@ class OfficeSimApp {
         this.scene.add(dn); this.floorObjects.push(dn);
       }
 
-      // ★ 下り階段の位置だけ床タイルを抜いたフロアを生成
+      // 2. 階段配置後に、階段の穴以外の床を隙間なく塗りつぶす（新描画順序）
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
-      this.buildFloorTiles(downStairs);
+      this.buildFittedFloorSurfaces(downStairs);
 
       await this.checkBoardUnread();
       this.refreshNPCs();
@@ -357,7 +386,7 @@ class OfficeSimApp {
 
     if (type === 'stairs_down') {
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
-      this.buildFloorTiles(downStairs);
+      this.buildFittedFloorSurfaces(downStairs);
     }
   }
 
@@ -391,7 +420,7 @@ class OfficeSimApp {
 
     if (d.type === 'stairs_down') {
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
-      this.buildFloorTiles(downStairs);
+      this.buildFittedFloorSurfaces(downStairs);
     }
   }
 
@@ -433,11 +462,13 @@ class OfficeSimApp {
     }
   }
 
+  // ★ 階移動モーション（暗転＋移動先階段からの出現モーション＋ジワリ明転）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
     this.closeModal();
 
+    // 1. 移動前の入室・昇降モーション
     if (interactObj && interactObj.userData.isElevator) {
       const doorL = interactObj.userData.doorL;
       const doorR = interactObj.userData.doorR;
@@ -464,6 +495,7 @@ class OfficeSimApp {
       }
     }
 
+    // 2. Canvas evenodd 暗転（外側が黒く穴が狭まり、最後にキャラが暗転）
     const cvs = document.getElementById('transition-canvas');
     const ctx = cvs ? cvs.getContext('2d') : null;
 
@@ -490,6 +522,7 @@ class OfficeSimApp {
         ctx.fill('evenodd');
       };
 
+      // フェーズA: 画面全体からキャラクター周囲（半径45px）まで穴が縮小
       const duration1 = 650;
       const startT1 = performance.now();
       await new Promise(resolve => {
@@ -506,6 +539,7 @@ class OfficeSimApp {
 
       await new Promise(r => setTimeout(r, 120));
 
+      // フェーズB: 穴が閉じて完全暗転
       const duration2 = 240;
       const startT2 = performance.now();
       await new Promise(resolve => {
@@ -522,23 +556,77 @@ class OfficeSimApp {
       drawCutoutHole(0);
     }
 
+    // 3. 裏でフロアをサイレント読み込み
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
 
     await this.loadFloor(targetFloor, true);
 
-    if (arrivalType === 'stairs_up') this.player.position.set(12, 0, -14);
-    else if (arrivalType === 'stairs_down') this.player.position.set(16, 0, -14);
-    else if (arrivalType === 'elevator') this.player.position.set(-14, 0, -14);
-    else this.player.position.set(0, 0, 0);
+    // ★ 4. 移動先の出現初期位置をセット
+    if (arrivalType === 'stairs_down') {
+      // 下階へ下りた場合: 移動先フロアの「上り階段」の最上段の上にスタンバイ
+      this.player.position.set(12, 1.08, -16 - 0.75);
+    } else if (arrivalType === 'stairs_up') {
+      // 上階へ登った場合: 移動先フロアの「下り階段」の地下最奥にスタンバイ
+      this.player.position.set(16, -1.08, -16 - 0.75);
+    } else if (arrivalType === 'elevator') {
+      // エレベーター内
+      this.player.position.set(-14, 0, -16);
+    } else {
+      this.player.position.set(0, 0, 0);
+    }
 
-    this.player.position.y = 0;
     this.updateCamera(this.player.position.x, this.player.position.z);
 
+    // ★ 5. ジワリ明転と同時に、移動先の階段を降りる／登る出現モーションを実行
+    const fadeDuration = 800; // 0.8秒
+    const startFade = performance.now();
+
+    const arrivalMotionPromise = (async () => {
+      if (arrivalType === 'stairs_down') {
+        // 上り階段を駆け下りてフロアへ
+        const startZ = -16 - 0.75;
+        const targetZ = -16 + 1.2;
+        for (let t = 0; t <= 30; t++) {
+          const ratio = t / 30;
+          this.player.position.z = startZ + (targetZ - startZ) * ratio;
+          this.player.position.y = Math.max(0, 1.08 * (1 - ratio));
+          this.updateCamera(this.player.position.x, this.player.position.z);
+          await new Promise(r => setTimeout(r, 26));
+        }
+      } else if (arrivalType === 'stairs_up') {
+        // 下り階段の穴から地上へ駆け上がってフロアへ
+        const startZ = -16 - 0.75;
+        const targetZ = -16 + 1.2;
+        for (let t = 0; t <= 30; t++) {
+          const ratio = t / 30;
+          this.player.position.z = startZ + (targetZ - startZ) * ratio;
+          this.player.position.y = Math.min(0, -1.08 * (1 - ratio));
+          this.updateCamera(this.player.position.x, this.player.position.z);
+          await new Promise(r => setTimeout(r, 26));
+        }
+      } else if (arrivalType === 'elevator') {
+        // エレベーター扉が開き歩き出てくる
+        const elv = this.floorObjects.find(o => o.userData.isElevator);
+        if (elv && elv.userData.doorL && elv.userData.doorR) {
+          for (let t = 0; t <= 15; t++) {
+            elv.userData.doorL.position.x = -0.35 - (t / 15) * 0.45;
+            elv.userData.doorR.position.x = 0.35 + (t / 15) * 0.45;
+            await new Promise(r => setTimeout(r, 20));
+          }
+        }
+        for (let t = 0; t <= 20; t++) {
+          this.player.position.z = -16 + (t / 20) * 1.5;
+          this.updateCamera(this.player.position.x, this.player.position.z);
+          await new Promise(r => setTimeout(r, 25));
+        }
+      }
+      this.player.position.y = 0;
+    })();
+
+    // ジワリと明転フェード
     if (cvs && ctx) {
-      const fadeDuration = 700;
-      const startFade = performance.now();
       await new Promise(resolve => {
         const animFade = (now) => {
           const progress = Math.min(1, (now - startFade) / fadeDuration);
@@ -555,6 +643,7 @@ class OfficeSimApp {
       ctx.clearRect(0, 0, cvs.width, cvs.height);
     }
 
+    await arrivalMotionPromise;
     this.isTransitioning = false;
   }
 
@@ -692,8 +781,8 @@ class OfficeSimApp {
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        if (this.floorTilesGroup) {
-          const hits = this.raycaster.intersectObjects(this.floorTilesGroup.children);
+        if (this.floorSurfacesGroup) {
+          const hits = this.raycaster.intersectObjects(this.floorSurfacesGroup.children);
           if (hits.length > 0) {
             const p = hits[0].point;
             const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
