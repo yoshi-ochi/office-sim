@@ -309,13 +309,12 @@ export class FurnitureFactory {
     return group;
   }
 
-  // ★ 上り階段: 手前（Z=0.9）が一番低い段、奥（Z=-0.9）に向かって自然に登っていく
+  // ★ 上り階段: 手前が低い段（1段目）、奥へ登る正順向き
   static buildStairsUp() {
     const group = new THREE.Group();
-    const steps = 6, stepDepth = 0.30, stepHeight = 0.20, width = 1.4;
+    const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.4;
     const stairMat = new THREE.MeshStandardMaterial({ color: 0x828b96, roughness: 0.6 });
 
-    // 手前から奥に向かって登る段差
     for (let i = 0; i < steps; i++) {
       const h = (i + 1) * stepHeight;
       const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, h, stepDepth), stairMat);
@@ -323,7 +322,6 @@ export class FurnitureFactory {
       group.add(stepMesh);
     }
 
-    // 周囲に調和するスリムな手すり（手前が低く奥が高い）
     const railMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.6 });
     [-0.72, 0.72].forEach(x => {
       const pFront = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7), railMat);
@@ -343,45 +341,50 @@ export class FurnitureFactory {
     return group;
   }
 
-  // ★ 下り階段: 床がくり抜かれた開口部にすっぽり収まる地下ピットと下り段差
+  // ★ 下り階段: 床とグリッドを完全に遮断するマスク + リアルな地下段差
   static buildStairsDown() {
     const group = new THREE.Group();
-    const steps = 6, stepDepth = 0.30, stepHeight = 0.20, width = 1.4;
+    const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.4;
     const stairMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
 
-    // 1. 地下の暗い坑道ピット（開口部の内側を覆う四方の壁と底面）
-    const pitMat = new THREE.MeshBasicMaterial({ color: 0x090d16 });
-    // 奥の壁
-    const wallB = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 1.8, 0.05), pitMat);
-    wallB.position.set(0, -0.9, -1.05); group.add(wallB);
-    // 左右の壁
-    [-0.72, 0.72].forEach(x => {
-      const wallS = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.8, 2.1), pitMat);
-      wallS.position.set(x, -0.9, 0); group.add(wallS);
-    });
-    // 底面
-    const pitFloor = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 0.05, 2.1), pitMat);
-    pitFloor.position.set(0, -1.8, 0); group.add(pitFloor);
+    // 1. 【超重要】床面およびグリッド線を完全に隠す開口部ベースマスク
+    // この面より下にある床やグリッドは一切描画されず、地下ピットだけが見える
+    const holeMaskGeo = new THREE.PlaneGeometry(width + 0.1, 2.0);
+    const holeMaskMat = new THREE.MeshBasicMaterial({ color: 0x0f172a }); // 開口部の影色
+    const holeMask = new THREE.Mesh(holeMaskGeo, holeMaskMat);
+    holeMask.rotation.x = -Math.PI / 2;
+    holeMask.position.set(0, 0.005, 0); // グリッド線 (0.004) よりわずかに上
+    group.add(holeMask);
 
-    // 2. 地下へめり込んで下っていく段差（手前入口から奥に向かって沈み込む）
+    // 2. 地下の立体ピット壁（奥・左右・底）
+    const pitMat = new THREE.MeshBasicMaterial({ color: 0x090d16 });
+    const wallB = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 1.6, 0.05), pitMat);
+    wallB.position.set(0, -0.8, -1.0); group.add(wallB);
+
+    [-0.72, 0.72].forEach(x => {
+      const wallS = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 2.0), pitMat);
+      wallS.position.set(x, -0.8, 0); group.add(wallS);
+    });
+
+    // 3. 地下へと下りていく段差（Yマイナス側へ実体化）
     for (let i = 0; i < steps; i++) {
       const depthY = (i + 1) * stepHeight;
-      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.20, stepDepth), stairMat);
-      stepMesh.position.set(0, -depthY + 0.1, 0.75 - (i * stepDepth));
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.18, stepDepth), stairMat);
+      stepMesh.position.set(0, -depthY + 0.09, 0.75 - (i * stepDepth));
       group.add(stepMesh);
     }
 
-    // 3. 地上部の低背ガードレール（高さ0.38mの腰下ガード、周囲に馴染むスチールグレー）
+    // 4. 床面を取り囲む低背スチールフェンス（高さ 0.38m）
     const fenceMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.6 });
     [-0.72, 0.72].forEach(x => {
-      const sideBar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.38, 2.1), fenceMat);
+      const sideBar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.38, 2.0), fenceMat);
       sideBar.position.set(x, 0.19, 0); group.add(sideBar);
     });
     const backBar = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 0.38, 0.025), fenceMat);
-    backBar.position.set(0, 0.19, -1.05); group.add(backBar);
+    backBar.position.set(0, 0.19, -1.0); group.add(backBar);
 
     const sign = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.18, 0.04), new THREE.MeshBasicMaterial({ color: 0x475569 }));
-    sign.position.set(0, 0.5, -1.05); group.add(sign);
+    sign.position.set(0, 0.5, -1.0); group.add(sign);
 
     return group;
   }
