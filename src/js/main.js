@@ -60,7 +60,6 @@ class OfficeSimApp {
     setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
-  // 複数個の下り階段の開口部に対応した床のくり抜き
   createHoleFloor(stairsDownObjects = []) {
     if (this.floorPlane) {
       this.scene.remove(this.floorPlane);
@@ -140,7 +139,6 @@ class OfficeSimApp {
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    // レイアウト時専用グリッド
     this.editGridGroup = new THREE.Group();
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 160, 0x60a5fa, 0x93c5fd);
     subGrid.position.y = 0.005;
@@ -446,7 +444,6 @@ class OfficeSimApp {
     }
   }
 
-  // ★ 最も近いペアの設備オブジェクトを探すヘルパー
   findNearestTarget(currentPos, candidateObjects) {
     if (!candidateObjects || candidateObjects.length === 0) return null;
     let nearest = candidateObjects[0];
@@ -463,7 +460,7 @@ class OfficeSimApp {
     return nearest;
   }
 
-  // ★ 階移動モーション（オブジェクトの回転角度に追従＋最寄り設備への接続＋並行暗転）
+  // ★ 階移動モーション（中心吸い寄せセンタリング＋回転追従＋最寄り接続＋並行暗転）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
@@ -491,11 +488,10 @@ class OfficeSimApp {
     };
 
     const interactRot = interactObj ? (interactObj.rotation.y || 0) : 0;
-    // オブジェクトの正面奥へ進む方向ベクトル
-    const moveDirX = -Math.sin(interactRot);
-    const moveDirZ = -Math.cos(interactRot);
+    const fwdX = -Math.sin(interactRot);
+    const fwdZ = -Math.cos(interactRot);
 
-    // 1. エレベーター演出（扉スライド開 $\rightarrow$ 向きに沿って中へ入る $\rightarrow$ 暗転）
+    // 1. エレベーター演出
     if (interactObj && interactObj.userData.isElevator) {
       const doorL = interactObj.userData.doorL;
       const doorR = interactObj.userData.doorR;
@@ -509,11 +505,16 @@ class OfficeSimApp {
       }
 
       const startPos = this.player.position.clone();
-      const moveDistance = 1.3;
+      const targetPos = new THREE.Vector3(
+        interactObj.position.x,
+        this.player.position.y,
+        interactObj.position.z
+      );
+
       for (let t = 0; t <= 22; t++) {
         const r = t / 22;
-        this.player.position.x = startPos.x + moveDirX * moveDistance * r;
-        this.player.position.z = startPos.z + moveDirZ * moveDistance * r;
+        this.player.position.x = startPos.x + (targetPos.x - startPos.x) * r;
+        this.player.position.z = startPos.z + (targetPos.z - startPos.z) * r;
         this.updateCamera(this.player.position.x, this.player.position.z);
         await new Promise(r => setTimeout(r, 22));
       }
@@ -537,18 +538,24 @@ class OfficeSimApp {
         drawCutoutHole(cx, cy, 0);
       }
 
-    // 2. 階段演出（回転向きに沿って昇降しながら、止まる前に完全暗転）
+    // 2. 階段演出（中央線へ収束しながら昇降）
     } else if (interactObj && (interactObj.userData.isStairsDown || interactObj.userData.isStairsUp)) {
       const isDown = interactObj.userData.isStairsDown;
       const startPos = this.player.position.clone();
-      const moveDistance = 1.25;
+
+      const targetPos = new THREE.Vector3(
+        interactObj.position.x + fwdX * 0.85,
+        this.player.position.y + (isDown ? -0.75 : 1.05),
+        interactObj.position.z + fwdZ * 0.85
+      );
+
       const totalSteps = 30;
       const maxRadius = cvs ? Math.hypot(cvs.width, cvs.height) : 1000;
 
       for (let t = 0; t <= totalSteps; t++) {
         const ratio = t / totalSteps;
-        this.player.position.x = startPos.x + moveDirX * moveDistance * ratio;
-        this.player.position.z = startPos.z + moveDirZ * moveDistance * ratio;
+        this.player.position.x = startPos.x + (targetPos.x - startPos.x) * ratio;
+        this.player.position.z = startPos.z + (targetPos.z - startPos.z) * ratio;
         this.player.position.y += isDown ? -0.025 : 0.035;
         this.updateCamera(this.player.position.x, this.player.position.z);
 
@@ -579,7 +586,6 @@ class OfficeSimApp {
       }
     }
 
-    // 3. 移動前オブジェクトの座標を記録してフロア読み込み
     const departurePos = interactObj ? interactObj.position.clone() : this.player.position.clone();
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
@@ -587,7 +593,6 @@ class OfficeSimApp {
 
     await this.loadFloor(targetFloor, true);
 
-    // ★ 4. 移動先フロアで最も近い接続先設備を自動検出
     let targetDestObj = null;
     if (arrivalType === 'stairs_down') {
       const candidates = this.floorObjects.filter(o => o.userData.isStairsUp);
@@ -605,21 +610,18 @@ class OfficeSimApp {
     const destBackZ = -Math.cos(destRot);
 
     if (arrivalType === 'stairs_down' && targetDestObj) {
-      // 下階へ下りた場合: 最寄り上り階段の最上段奥にスタンバイ
       this.player.position.set(
         targetDestObj.position.x + destBackX * 0.75,
         1.08,
         targetDestObj.position.z + destBackZ * 0.75
       );
     } else if (arrivalType === 'stairs_up' && targetDestObj) {
-      // 上階へ登った場合: 最寄り下り階段の地下奥にスタンバイ
       this.player.position.set(
         targetDestObj.position.x + destBackX * 0.75,
         -1.08,
         targetDestObj.position.z + destBackZ * 0.75
       );
     } else if (arrivalType === 'elevator' && targetDestObj) {
-      // エレベーター内
       this.player.position.set(targetDestObj.position.x, 0, targetDestObj.position.z);
     } else {
       this.player.position.set(0, 0, 0);
@@ -627,7 +629,6 @@ class OfficeSimApp {
 
     this.updateCamera(this.player.position.x, this.player.position.z);
 
-    // 5. 階段から手前へ降りる／登る出現モーション（設備の回転向きに追従）
     const fadeDuration = 800;
     const startFade = performance.now();
 
@@ -636,7 +637,6 @@ class OfficeSimApp {
         const startX = this.player.position.x;
         const startZ = this.player.position.z;
         const exitDist = 1.95;
-        // 階段の正面（奥の反対方向）へ向かって駆け下りる
         const forwardX = -destBackX;
         const forwardZ = -destBackZ;
 
@@ -899,7 +899,7 @@ class OfficeSimApp {
         if (hits.length > 0) {
           let root = hits[0].object;
           while (root.parent && root.parent !== this.scene) root = root.parent;
-          this.handleTriggerObject(root);
+          this.handleTriggerObject(root, true);
         }
       }
 
@@ -962,27 +962,55 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
-  handleTriggerObject(obj) {
+  // ★ 正面入口1辺のみを厳格に判定するトリガーハンドラー
+  handleTriggerObject(obj, isClick = false) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
       return;
     }
     const data = obj.userData;
 
-    if (data.isStairsUp) {
-      if (this.currentFloor < CONFIG.FLOORS.length) this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', obj);
-      else alert('最上階のためこれ以上上がれません。');
-      return;
+    // 階段・エレベーターの正面入口判定
+    if (data.isStairsUp || data.isStairsDown || data.isElevator) {
+      const dx = this.player.position.x - obj.position.x;
+      const dz = this.player.position.z - obj.position.z;
+      const rad = -(obj.rotation.y || 0);
+      // オブジェクトのローカル座標に変換
+      const localX = dx * Math.cos(rad) - dz * Math.sin(rad);
+      const localZ = dx * Math.sin(rad) + dz * Math.cos(rad);
+
+      // 正面入口は localZ > 0.40 かつ |localX| <= 0.65
+      const isFrontEntrance = (localZ >= 0.35) && (Math.abs(localX) <= 0.65);
+
+      // 正面入口以外（側面・手すり・フェンス・奥壁）からの接触・クリックは完全に無視
+      if (!isFrontEntrance) {
+        return;
+      }
+
+      if (data.isStairsUp) {
+        if (this.currentFloor < CONFIG.FLOORS.length) {
+          this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', obj);
+        } else {
+          alert('最上階のためこれ以上上がれません。');
+        }
+        return;
+      }
+
+      if (data.isStairsDown) {
+        if (this.currentFloor > 1) {
+          this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', obj);
+        } else {
+          alert('1階のためこれ以上下りられません。');
+        }
+        return;
+      }
+
+      if (data.isElevator) {
+        this.triggerElevator();
+        return;
+      }
     }
-    if (data.isStairsDown) {
-      if (this.currentFloor > 1) this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', obj);
-      else alert('1階のためこれ以上下りられません。');
-      return;
-    }
-    if (data.isElevator) {
-      this.triggerElevator();
-      return;
-    }
+
     if (data.type === 'board') {
       this.triggerBoard(obj);
       return;
@@ -1431,11 +1459,12 @@ class OfficeSimApp {
 
     const isMovingInput = Math.hypot(vx, vy) > 0.05;
 
+    // ★ 衝突移動時の発火チェック
     if (!this.isModalActive && !this.isTransitioning && hit && isMovingInput) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
-        if (this.collisionTimer >= 1.0) {
-          this.handleTriggerObject(hit);
+        if (this.collisionTimer >= 0.5) {
+          this.handleTriggerObject(hit, false);
           this.collisionTimer = 0;
           this.collidingObject = null;
         }
@@ -1462,5 +1491,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
-
