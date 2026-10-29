@@ -85,8 +85,8 @@ export class FurnitureFactory {
       case 'phone': mesh = this.buildPhone(); break;
       case 'board': mesh = this.buildBoard(group); break;
       case 'elevator': mesh = this.buildElevator(group); break;
-      case 'stairs_up': mesh = this.buildStairsUp(); break;
-      case 'stairs_down': mesh = this.buildStairsDown(); break;
+      case 'stairs_up': mesh = this.buildStairsUp(group); break;
+      case 'stairs_down': mesh = this.buildStairsDown(group); break;
       default: mesh = this.buildBox(); break;
     }
     group.add(mesh);
@@ -287,7 +287,7 @@ export class FurnitureFactory {
     return group;
   }
 
-  // ★ 空洞キャビン＆両開きスライド扉を備えたエレベーター
+  // ★ エレベーター: 正面入口に透明な接触トリガー板（entryTrigger）を配置
   static buildElevator(parentGroup) {
     const group = new THREE.Group();
     const w = 2.2, h = 3.0, d = 1.8;
@@ -296,7 +296,7 @@ export class FurnitureFactory {
     const innerMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.1 });
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
 
-    // 1. 空洞キャビン（床・天井・奥壁・左右壁）
+    // キャビン内部
     const cabFloor = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.04, d - 0.1), floorMat);
     cabFloor.position.set(0, 0.02, 0); group.add(cabFloor);
 
@@ -311,11 +311,9 @@ export class FurnitureFactory {
       sideWall.position.set(x, h / 2, 0); group.add(sideWall);
     });
 
-    // 正面上部枠
     const topFrame = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, 0.08), outerMat);
     topFrame.position.set(0, h - 0.25, d / 2); group.add(topFrame);
 
-    // 正面左右の戸袋壁
     const doorW = 0.65;
     const doorH = h - 0.5;
     const jambW = (w - doorW * 2) / 2;
@@ -324,30 +322,34 @@ export class FurnitureFactory {
       jamb.position.set(x, doorH / 2, d / 2); group.add(jamb);
     });
 
-    // 2. 両開きスライド扉（左扉・右扉）
+    // 両開きスライド扉
     const doorMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.2, metalness: 0.8 });
-
     const doorL = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.03), doorMat);
-    doorL.position.set(-doorW / 2, doorH / 2, d / 2 - 0.02);
-    group.add(doorL);
+    doorL.position.set(-doorW / 2, doorH / 2, d / 2 - 0.02); group.add(doorL);
 
     const doorR = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.03), doorMat);
-    doorR.position.set(doorW / 2, doorH / 2, d / 2 - 0.02);
-    group.add(doorR);
+    doorR.position.set(doorW / 2, doorH / 2, d / 2 - 0.02); group.add(doorR);
 
     parentGroup.userData.doorL = doorL;
     parentGroup.userData.doorR = doorR;
     parentGroup.userData.doorWidth = doorW;
 
-    // 3. インジケーターランプ
     const ind = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
     ind.position.set(0, h - 0.25, d / 2 + 0.05); group.add(ind);
+
+    // ★ 正面入口の透明トリガー板 (扉の足元: z = d/2 + 0.3)
+    const triggerGeo = new THREE.BoxGeometry(doorW * 1.8, 0.6, 0.5);
+    const triggerMat = new THREE.MeshBasicMaterial({ visible: false });
+    const triggerMesh = new THREE.Mesh(triggerGeo, triggerMat);
+    triggerMesh.position.set(0, 0.3, d / 2 + 0.3);
+    group.add(triggerMesh);
+    parentGroup.userData.entryTrigger = triggerMesh;
 
     return group;
   }
 
-  // ★ 上り階段: 手前が低い段、奥へ登っていく
-  static buildStairsUp() {
+  // ★ 上り階段: 正面入口（1段目の足元）に透明な接触トリガー板を配置
+  static buildStairsUp(parentGroup) {
     const group = new THREE.Group();
     const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.35;
     const stairMat = new THREE.MeshStandardMaterial({ color: 0x828b96, roughness: 0.6 });
@@ -375,56 +377,46 @@ export class FurnitureFactory {
     const sign = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
     sign.position.set(0, 1.9, -0.75); group.add(sign);
 
+    // ★ 1段目の足元の透明トリガー板 (z = 0.75 + 0.3)
+    const triggerGeo = new THREE.BoxGeometry(width, 0.6, 0.5);
+    const triggerMat = new THREE.MeshBasicMaterial({ visible: false });
+    const triggerMesh = new THREE.Mesh(triggerGeo, triggerMat);
+    triggerMesh.position.set(0, 0.3, 0.75 + 0.3);
+    group.add(triggerMesh);
+    parentGroup.userData.entryTrigger = triggerMesh;
+
     return group;
   }
 
-  // ★ 下り階段: フタなし。手前から地下へ下る立体段差と、奥壁・側壁・低背フェンス
-  static buildStairsDown() {
+  // ★ 下り階段: 正面入口（下り口の足元）に透明な接触トリガー板を配置
+  static buildStairsDown(parentGroup) {
     const group = new THREE.Group();
     const steps = 6, stepDepth = 0.30, stepHeight = 0.18, width = 1.35;
 
-    // 1. 地下の立体ピット壁
     const pitMat = new THREE.MeshStandardMaterial({ color: 0x151b26, roughness: 0.8 });
-    
-    // 奥の壁
     const wallBack = new THREE.Mesh(new THREE.BoxGeometry(width + 0.04, 1.6, 0.04), pitMat);
     wallBack.position.set(0, -0.8, -0.92); group.add(wallBack);
 
-    // 左右の側壁
     [-0.68, 0.68].forEach(x => {
       const wallSide = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.6, 1.88), pitMat);
       wallSide.position.set(x, -0.8, 0.02); group.add(wallSide);
     });
 
-    // 坑道底面
     const pitFloor = new THREE.Mesh(new THREE.BoxGeometry(width + 0.04, 0.04, 1.88), pitMat);
     pitFloor.position.set(0, -1.6, 0.02); group.add(pitFloor);
 
-    // 2. 下っていく階段ステップ
     const stepColors = [0x9ba4af, 0x828b96, 0x69727d, 0x515a65, 0x3a424d, 0x252c36];
     for (let i = 0; i < steps; i++) {
       const stepY = -((i + 1) * stepHeight);
       const stepZ = 0.75 - (i * stepDepth);
-
-      const mat = new THREE.MeshStandardMaterial({
-        color: stepColors[i],
-        roughness: 0.45,
-        metalness: 0.1
-      });
-
+      const mat = new THREE.MeshStandardMaterial({ color: stepColors[i], roughness: 0.45, metalness: 0.1 });
       const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.18, stepDepth), mat);
-      stepMesh.position.set(0, stepY + 0.09, stepZ);
-      group.add(stepMesh);
+      stepMesh.position.set(0, stepY + 0.09, stepZ); group.add(stepMesh);
 
-      const edge = new THREE.Mesh(
-        new THREE.BoxGeometry(width, 0.02, 0.025),
-        new THREE.MeshBasicMaterial({ color: 0xdbe2ea })
-      );
-      edge.position.set(0, stepY + 0.18, stepZ + (stepDepth / 2));
-      group.add(edge);
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(width, 0.02, 0.025), new THREE.MeshBasicMaterial({ color: 0xdbe2ea }));
+      edge.position.set(0, stepY + 0.18, stepZ + (stepDepth / 2)); group.add(edge);
     }
 
-    // 3. 地上の低背ガードフェンス（高さ 0.38m）
     const fenceMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.6 });
     [-0.68, 0.68].forEach(x => {
       const sideFence = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.38, 1.88), fenceMat);
@@ -435,6 +427,14 @@ export class FurnitureFactory {
 
     const sign = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.18, 0.04), new THREE.MeshBasicMaterial({ color: 0x475569 }));
     sign.position.set(0, 0.48, -0.92); group.add(sign);
+
+    // ★ 下り口の足元の透明トリガー板 (z = 0.75 + 0.3)
+    const triggerGeo = new THREE.BoxGeometry(width, 0.6, 0.5);
+    const triggerMat = new THREE.MeshBasicMaterial({ visible: false });
+    const triggerMesh = new THREE.Mesh(triggerGeo, triggerMat);
+    triggerMesh.position.set(0, 0.3, 0.75 + 0.3);
+    group.add(triggerMesh);
+    parentGroup.userData.entryTrigger = triggerMesh;
 
     return group;
   }
