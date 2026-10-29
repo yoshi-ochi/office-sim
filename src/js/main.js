@@ -57,6 +57,48 @@ class OfficeSimApp {
     setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
+  // ★ 下り階段の位置を物理的にくり抜いた穴あき床メッシュを生成
+  createHoleFloor(stairsDownObjects = []) {
+    if (this.floorPlane) {
+      this.scene.remove(this.floorPlane);
+      if (this.floorPlane.geometry) this.floorPlane.geometry.dispose();
+    }
+
+    const S = CONFIG.FIELD_SIZE / 2; // 40
+    const shape = new THREE.Shape();
+    // 外側の輪郭 (反時計回り: CCW)
+    shape.moveTo(-S, -S);
+    shape.lineTo(S, -S);
+    shape.lineTo(S, S);
+    shape.lineTo(-S, S);
+    shape.closePath();
+
+    // 各下り階段の位置に穴 (Hole: 時計回り CW) をあける
+    stairsDownObjects.forEach(obj => {
+      const pos = obj.position;
+      const hw = 0.85; // 階段の半幅
+      const hd = 1.25; // 階段の半奥行
+
+      // floorPlane の rotation.x = -PI/2 より: 3D X = shape X, 3D Z = -shape Y
+      const sx = pos.x;
+      const sy = -pos.z;
+
+      const hole = new THREE.Path();
+      hole.moveTo(sx - hw, sy + hd); // 左上
+      hole.lineTo(sx + hw, sy + hd); // 右上
+      hole.lineTo(sx + hw, sy - hd); // 右下
+      hole.lineTo(sx - hw, sy - hd); // 左下
+      hole.closePath();
+      shape.holes.push(hole);
+    });
+
+    const floorGeo = new THREE.ShapeGeometry(shape);
+    this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
+    this.floorPlane.rotation.x = -Math.PI / 2;
+    this.floorPlane.receiveShadow = false;
+    this.scene.add(this.floorPlane);
+  }
+
   init() {
     const container = document.getElementById('canvas-container');
     const theme = CONFIG.FLOOR_THEME || {
@@ -153,44 +195,6 @@ class OfficeSimApp {
     return null;
   }
 
-    // 下り階段の位置を物理的にくり抜いた床メッシュを生成
-  createHoleFloor(stairsDownObjects = []) {
-    if (this.floorPlane) {
-      this.scene.remove(this.floorPlane);
-      if (this.floorPlane.geometry) this.floorPlane.geometry.dispose();
-    }
-
-    const S = CONFIG.FIELD_SIZE / 2;
-    const shape = new THREE.Shape();
-    // 外枠 (80m x 80m)
-    shape.moveTo(-S, -S);
-    shape.lineTo(S, -S);
-    shape.lineTo(S, S);
-    shape.lineTo(-S, S);
-    shape.closePath();
-
-    // 各下り階段の位置に穴 (Hole) をあける
-    stairsDownObjects.forEach(obj => {
-      const pos = obj.position || obj;
-      const hw = 0.75; // 階段の半幅 (幅1.5m)
-      const hd = 1.05; // 階段の奥行き (2.1m)
-
-      const hole = new THREE.Path();
-      hole.moveTo(pos.x - hw, pos.z - hd);
-      hole.lineTo(pos.x + hw, pos.z - hd);
-      hole.lineTo(pos.x + hw, pos.z + hd);
-      hole.lineTo(pos.x - hw, pos.z + hd);
-      hole.closePath();
-      shape.holes.push(hole);
-    });
-
-    const floorGeo = new THREE.ShapeGeometry(shape);
-    this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
-    this.floorPlane.rotation.x = -Math.PI / 2;
-    this.floorPlane.receiveShadow = false;
-    this.scene.add(this.floorPlane);
-  }
-
   async loadFloor(floorId, silent = false) {
     if (!silent) this.showLoading();
     try {
@@ -238,7 +242,7 @@ class OfficeSimApp {
         this.scene.add(dn); this.floorObjects.push(dn);
       }
 
-            // 下り階段の位置を取得して床をくり抜く
+      // ★ 下り階段オブジェクトを抽出し、その場所の床を完全にくり抜く
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
       this.createHoleFloor(downStairs);
 
@@ -421,7 +425,7 @@ class OfficeSimApp {
     }
   }
 
-  // ★ 階移動モーション（画面の対角を覆う長方形の内側 且つ 円の外側を黒くする描画）
+  // ★ 階移動モーション（Canvas evenodd 方式：長方形の内側かつ円の外側を黒くして縮小）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
@@ -468,6 +472,7 @@ class OfficeSimApp {
       const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
       const maxRadius = Math.hypot(cvs.width, cvs.height);
 
+      // 長方形の内側 且つ 円の外側 を黒くする偶奇塗り (evenodd)
       const drawCutoutHole = (r) => {
         ctx.clearRect(0, 0, cvs.width, cvs.height);
         ctx.fillStyle = '#0b0f19';
@@ -479,6 +484,7 @@ class OfficeSimApp {
         ctx.fill('evenodd');
       };
 
+      // フェーズ1: 画面全体からキャラクター周囲（半径45px）まで穴が縮小
       const duration1 = 650;
       const startT1 = performance.now();
       await new Promise(resolve => {
@@ -493,8 +499,10 @@ class OfficeSimApp {
         requestAnimationFrame(anim1);
       });
 
+      // キャラクターだけが見えている状態で一瞬キープ
       await new Promise(r => setTimeout(r, 120));
 
+      // フェーズ2: 最後にキャラクター頭元の穴（45px -> 0px）が閉じて完全暗転
       const duration2 = 240;
       const startT2 = performance.now();
       await new Promise(resolve => {
@@ -511,6 +519,7 @@ class OfficeSimApp {
       drawCutoutHole(0);
     }
 
+    // 裏でフロアをサイレント読み込み（ローディングUIは非表示）
     this.currentFloor = targetFloor;
     const select = document.getElementById('floor-select');
     if (select) select.value = String(targetFloor);
@@ -525,6 +534,7 @@ class OfficeSimApp {
     this.player.position.y = 0;
     this.updateCamera(this.player.position.x, this.player.position.z);
 
+    // 新フロアがジワリと明転 (Alpha 1.0 -> 0.0)
     if (cvs && ctx) {
       const fadeDuration = 700;
       const startFade = performance.now();
@@ -1278,4 +1288,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-

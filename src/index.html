@@ -82,7 +82,7 @@
     </div>
   </div>
 
-  <!-- シンプル・ローディングオーバーレイ (Loading... と サークルのみ) -->
+  <!-- シンプル・ローディングオーバーレイ (通常読み込み時のみ使用) -->
   <div id="global-loading-overlay" style="
     display: none;
     position: fixed;
@@ -101,14 +101,7 @@
     pointer-events: auto;
   ">
     <div class="circle-spinner"></div>
-    <div style="
-      margin-top: 18px;
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    ">Loading...</div>
+    <div style="margin-top: 18px; color: #ffffff; font-size: 14px; font-weight: 500; letter-spacing: 0.1em;">Loading...</div>
   </div>
 
   <!-- 3Dレンダリング用コンテナ -->
@@ -171,7 +164,6 @@
       <button id="btn-f-delete" class="fab-btn fab-delete">🗑️ 撤去</button>
     </div>
 
-    <!-- カルーセルスライド式 家具選択パレット -->
     <div id="furniture-carousel-modal" style="
       position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
       display: none; flex-direction: column; align-items: center;
