@@ -962,7 +962,7 @@ class OfficeSimApp {
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
   }
 
-  // ★ 正面入口1辺のみを厳格に判定するトリガーハンドラー
+  // ★ Three.js公式の worldToLocal を用いた100%確実な正面入口判定
   handleTriggerObject(obj, isClick = false) {
     if (this.isEditMode) {
       this.selectFurniture(obj);
@@ -970,19 +970,18 @@ class OfficeSimApp {
     }
     const data = obj.userData;
 
-    // 階段・エレベーターの正面入口判定
+    // 階段・エレベーターの正面入口厳格判定
     if (data.isStairsUp || data.isStairsDown || data.isElevator) {
-      const dx = this.player.position.x - obj.position.x;
-      const dz = this.player.position.z - obj.position.z;
-      const rad = -(obj.rotation.y || 0);
-      // オブジェクトのローカル座標に変換
-      const localX = dx * Math.cos(rad) - dz * Math.sin(rad);
-      const localZ = dx * Math.sin(rad) + dz * Math.cos(rad);
+      obj.updateMatrixWorld(true);
+      // プレイヤー座標をオブジェクトのローカル座標に完全変換
+      const localPos = obj.worldToLocal(this.player.position.clone());
 
-      // 正面入口は localZ > 0.40 かつ |localX| <= 0.65
-      const isFrontEntrance = (localZ >= 0.35) && (Math.abs(localX) <= 0.65);
+      // 正面入口の基準:
+      // - 横幅: 幅中心から左右 ±0.68m 以内 (|localX| <= 0.68)
+      // - 奥行き: 正面の足元手前 +0.50m 〜 +1.45m の範囲 (正面1辺の前に立っている)
+      const isFrontEntrance = (localPos.z >= 0.45 && localPos.z <= 1.45) && (Math.abs(localPos.x) <= 0.68);
 
-      // 正面入口以外（側面・手すり・フェンス・奥壁）からの接触・クリックは完全に無視
+      // 正面入口以外（側面・手すり・フェンス・奥壁・背面）は完全に弾く
       if (!isFrontEntrance) {
         return;
       }
@@ -1459,11 +1458,11 @@ class OfficeSimApp {
 
     const isMovingInput = Math.hypot(vx, vy) > 0.05;
 
-    // ★ 衝突移動時の発火チェック
+    // ★ 衝突移動時の発火チェック（正面入口判定を通過した場合のみ実行）
     if (!this.isModalActive && !this.isTransitioning && hit && isMovingInput) {
       if (this.collidingObject === hit) {
         this.collisionTimer += delta;
-        if (this.collisionTimer >= 0.5) {
+        if (this.collisionTimer >= 0.4) {
           this.handleTriggerObject(hit, false);
           this.collisionTimer = 0;
           this.collidingObject = null;
@@ -1491,4 +1490,3 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
-
