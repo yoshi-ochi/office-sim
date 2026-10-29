@@ -1005,7 +1005,7 @@ class OfficeSimApp {
       }
 
       if (data.isElevator) {
-        this.triggerElevator();
+        this.triggerElevator(obj);
         return;
       }
     }
@@ -1490,3 +1490,4 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
