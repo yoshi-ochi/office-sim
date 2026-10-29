@@ -39,6 +39,7 @@ class OfficeSimApp {
     this.collisionTimer = 0;
     this.activeTriggerPadObj = null;
     this.triggerPadTimer = 0;
+    this.isTriggerLocked = false; // ★ 階移動直後の再接触防止ロック
     this.isModalActive = false;
     this.isTransitioning = false;
     this.currentUser = null;
@@ -603,7 +604,7 @@ class OfficeSimApp {
 
     const arrivalMotionPromise = (async () => {
       if (arrivalType === 'stairs_down' && targetDestObj) {
-        const startX = this.player.position.x, startZ = this.player.position.z, exitDist = 1.95;
+        const startX = this.player.position.x, startZ = this.player.position.z, exitDist = 2.45;
         const forwardX = -destBackX, forwardZ = -destBackZ;
         for (let t = 0; t <= 30; t++) {
           const r = t / 30;
@@ -614,7 +615,7 @@ class OfficeSimApp {
           await new Promise(res => setTimeout(res, 24));
         }
       } else if (arrivalType === 'stairs_up' && targetDestObj) {
-        const startX = this.player.position.x, startZ = this.player.position.z, exitDist = 1.95;
+        const startX = this.player.position.x, startZ = this.player.position.z, exitDist = 2.45;
         const forwardX = -destBackX, forwardZ = -destBackZ;
         for (let t = 0; t <= 30; t++) {
           const r = t / 30;
@@ -639,8 +640,8 @@ class OfficeSimApp {
         const forwardX = Math.sin(destRot), forwardZ = Math.cos(destRot);
         for (let t = 0; t <= 22; t++) {
           const r = t / 22;
-          this.player.position.x = startX + forwardX * 1.5 * r;
-          this.player.position.z = startZ + forwardZ * 1.5 * r;
+          this.player.position.x = startX + forwardX * 2.2 * r;
+          this.player.position.z = startZ + forwardZ * 2.2 * r;
           this.updateCamera(this.player.position.x, this.player.position.z);
           await new Promise(res => setTimeout(res, 22));
         }
@@ -674,6 +675,9 @@ class OfficeSimApp {
 
     await arrivalMotionPromise;
     this.isTransitioning = false;
+    this.isTriggerLocked = true; // ★ 到着時はロック状態（一度離れるまで発火しない）
+    this.triggerPadTimer = 0;
+    this.activeTriggerPadObj = null;
   }
 
   setupEvents() {
@@ -1355,38 +1359,47 @@ class OfficeSimApp {
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    // ★ 物理板（正面透明トリガー）への接触判定：接触後1.2秒継続で発火
+    // ★ 物理板（正面透明トリガー）への接触判定（離脱ロック＋1.2秒継続判定）
     const triggerTarget = this.checkTriggerPad();
-    if (triggerTarget && !this.isTransitioning && !this.isModalActive) {
-      if (this.activeTriggerPadObj === triggerTarget) {
-        this.triggerPadTimer += delta;
-        if (this.triggerPadTimer >= 1.2) {
-          this.triggerPadTimer = 0;
-          const targetObj = this.activeTriggerPadObj;
-          this.activeTriggerPadObj = null;
 
-          if (targetObj.userData.isStairsUp) {
-            if (this.currentFloor < CONFIG.FLOORS.length) {
-              this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', targetObj);
-            } else {
-              alert('最上階のためこれ以上上がれません。');
+    if (triggerTarget) {
+      // ロック中（階移動直後など）は、トリガー板を踏んでいても発火タイマーを進めない
+      if (!this.isTriggerLocked && !this.isTransitioning && !this.isModalActive) {
+        if (this.activeTriggerPadObj === triggerTarget) {
+          this.triggerPadTimer += delta;
+          if (this.triggerPadTimer >= 1.2) {
+            this.triggerPadTimer = 0;
+            const targetObj = this.activeTriggerPadObj;
+            this.activeTriggerPadObj = null;
+            this.isTriggerLocked = true; // 次の階移動まで即座にロック
+
+            if (targetObj.userData.isStairsUp) {
+              if (this.currentFloor < CONFIG.FLOORS.length) {
+                this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', targetObj);
+              } else {
+                alert('最上階のためこれ以上上がれません。');
+                this.isTriggerLocked = false;
+              }
+            } else if (targetObj.userData.isStairsDown) {
+              if (this.currentFloor > 1) {
+                this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', targetObj);
+              } else {
+                alert('1階のためこれ以上下りられません。');
+                this.isTriggerLocked = false;
+              }
+            } else if (targetObj.userData.isElevator) {
+              this.triggerElevator(targetObj);
             }
-          } else if (targetObj.userData.isStairsDown) {
-            if (this.currentFloor > 1) {
-              this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', targetObj);
-            } else {
-              alert('1階のためこれ以上下りられません。');
-            }
-          } else if (targetObj.userData.isElevator) {
-            this.triggerElevator(targetObj);
+            return;
           }
-          return;
+        } else {
+          this.activeTriggerPadObj = triggerTarget;
+          this.triggerPadTimer = 0;
         }
-      } else {
-        this.activeTriggerPadObj = triggerTarget;
-        this.triggerPadTimer = 0;
       }
     } else {
+      // ★ プレイヤーがトリガー板から完全に外へ離れたら、再接触ロックを解除
+      this.isTriggerLocked = false;
       this.activeTriggerPadObj = null;
       this.triggerPadTimer = 0;
     }
@@ -1424,4 +1437,5 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
