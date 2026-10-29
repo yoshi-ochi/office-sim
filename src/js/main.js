@@ -180,9 +180,15 @@ class OfficeSimApp {
       const localX = dx * Math.cos(rad) - dz * Math.sin(rad);
       const localZ = dx * Math.sin(rad) + dz * Math.cos(rad);
 
-      // 階段の正面入口のみ踏み込みを許可（上り階段の1段目手前をスムーズに通す）
-      if (d.isStairsUp || d.isStairsDown) {
+      // 下り階段は地下穴への進入を許可
+      if (d.isStairsDown) {
         if (localZ > 0.30 && Math.abs(localX) <= halfW - 0.05) {
+          continue;
+        }
+      }
+      // 上り階段は1段目の手前（最前面透明板）で自然にストップさせ、めり込みを防ぐ
+      if (d.isStairsUp) {
+        if (localZ > 0.95 && Math.abs(localX) <= halfW - 0.05) {
           continue;
         }
       }
@@ -1430,6 +1436,8 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
+
 
 
 
