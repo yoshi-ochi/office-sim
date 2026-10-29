@@ -16,8 +16,8 @@ class OfficeSimApp {
 
     this.floorObjects = [];
     this.npcObjects = [];
-    this.floorSurfacesGroup = null;
-    this.editGridGroup = null; // ★ レイアウト時専用グリッド
+    this.floorPlane = null;
+    this.editGridGroup = null;
     this.isEditMode = false;
     this.selectedObject = null;
     this.isDragging = false;
@@ -59,91 +59,70 @@ class OfficeSimApp {
     setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
-  // ★ 階段以外の範囲を隙間なく敷き詰める分割床面
-  buildFittedFloorSurfaces(stairsDownObjects = []) {
-    if (this.floorSurfacesGroup) {
-      this.scene.remove(this.floorSurfacesGroup);
-      this.floorSurfacesGroup.traverse(child => {
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) child.material.dispose();
-      });
+  // ★ 複数の下り階段すべてに対応した穴あき床メッシュの動的生成
+  createHoleFloor(stairsDownObjects = []) {
+    if (this.floorPlane) {
+      this.scene.remove(this.floorPlane);
+      if (this.floorPlane.geometry) this.floorPlane.geometry.dispose();
     }
 
-    this.floorSurfacesGroup = new THREE.Group();
-    const theme = CONFIG.FLOOR_THEME || { FLOOR_COLOR: 0x828890 };
     const S = CONFIG.FIELD_SIZE / 2; // 40m
-    const floorMat = new THREE.MeshLambertMaterial({
-      color: theme.FLOOR_COLOR,
-      side: THREE.FrontSide
+    const shape = new THREE.Shape();
+    // 外枠 (反時計回り CCW)
+    shape.moveTo(-S, -S);
+    shape.lineTo( S, -S);
+    shape.lineTo( S,  S);
+    shape.lineTo(-S,  S);
+    shape.closePath();
+
+    // ★ 存在する「すべての下り階段」に対して穴 (時計回り CW) を開ける
+    stairsDownObjects.forEach(obj => {
+      const hw = 0.68;
+      const zMin = -0.95;
+      const zMax = 0.92;
+
+      // 階段ローカル座標の4隅
+      const localCorners = [
+        new THREE.Vector3(-hw, 0, zMin),
+        new THREE.Vector3( hw, 0, zMin),
+        new THREE.Vector3( hw, 0, zMax),
+        new THREE.Vector3(-hw, 0, zMax)
+      ];
+
+      // 階段のワールド位置・回転を反映した4頂点を計算
+      obj.updateMatrixWorld(true);
+      const worldCorners = localCorners.map(c => c.applyMatrix4(obj.matrixWorld));
+
+      // 3D空間の (X, Z) から Shape空間の (X, -Z) にマッピング (時計回り)
+      const hole = new THREE.Path();
+      hole.moveTo(worldCorners[0].x, -worldCorners[0].z);
+      hole.lineTo(worldCorners[1].x, -worldCorners[1].z);
+      hole.lineTo(worldCorners[2].x, -worldCorners[2].z);
+      hole.lineTo(worldCorners[3].x, -worldCorners[3].z);
+      hole.closePath();
+      shape.holes.push(hole);
     });
 
-    if (stairsDownObjects.length === 0) {
-      const fullGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
-      const fullFloor = new THREE.Mesh(fullGeo, floorMat);
-      fullFloor.rotation.x = -Math.PI / 2;
-      fullFloor.position.set(0, 0, 0);
-      this.floorSurfacesGroup.add(fullFloor);
-    } else {
-      const st = stairsDownObjects[0];
-      const px = st.position.x;
-      const pz = st.position.z;
-
-      const hw = 0.70;
-      const hFront = 0.96;
-      const hBack = 0.94;
-
-      const holeLeft   = px - hw;
-      const holeRight  = px + hw;
-      const holeFront  = pz + hFront;
-      const holeBack   = pz - hBack;
-
-      const wLeft = holeLeft - (-S);
-      if (wLeft > 0) {
-        const geoL = new THREE.PlaneGeometry(wLeft, CONFIG.FIELD_SIZE);
-        const meshL = new THREE.Mesh(geoL, floorMat);
-        meshL.rotation.x = -Math.PI / 2;
-        meshL.position.set(-S + wLeft / 2, 0, 0);
-        this.floorSurfacesGroup.add(meshL);
-      }
-
-      const wRight = S - holeRight;
-      if (wRight > 0) {
-        const geoR = new THREE.PlaneGeometry(wRight, CONFIG.FIELD_SIZE);
-        const meshR = new THREE.Mesh(geoR, floorMat);
-        meshR.rotation.x = -Math.PI / 2;
-        meshR.position.set(holeRight + wRight / 2, 0, 0);
-        this.floorSurfacesGroup.add(meshR);
-      }
-
-      const dBack = holeBack - (-S);
-      if (dBack > 0) {
-        const geoB = new THREE.PlaneGeometry(hw * 2, dBack);
-        const meshB = new THREE.Mesh(geoB, floorMat);
-        meshB.rotation.x = -Math.PI / 2;
-        meshB.position.set(px, 0, -S + dBack / 2);
-        this.floorSurfacesGroup.add(meshB);
-      }
-
-      const dFront = S - holeFront;
-      if (dFront > 0) {
-        const geoF = new THREE.PlaneGeometry(hw * 2, dFront);
-        const meshF = new THREE.Mesh(geoF, floorMat);
-        meshF.rotation.x = -Math.PI / 2;
-        meshF.position.set(px, 0, holeFront + dFront / 2);
-        this.floorSurfacesGroup.add(meshF);
-      }
+    const floorGeo = new THREE.ShapeGeometry(shape);
+    const theme = CONFIG.FLOOR_THEME || { FLOOR_COLOR: 0x828890 };
+    if (!this.floorMat) {
+      this.floorMat = new THREE.MeshLambertMaterial({
+        color: theme.FLOOR_COLOR,
+        side: THREE.DoubleSide
+      });
     }
-
-    this.scene.add(this.floorSurfacesGroup);
+    this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
+    this.floorPlane.rotation.x = -Math.PI / 2;
+    this.floorPlane.position.set(0, 0, 0);
+    this.floorPlane.receiveShadow = false;
+    this.scene.add(this.floorPlane);
   }
 
   init() {
     const container = document.getElementById('canvas-container');
     const theme = CONFIG.FLOOR_THEME || {
       FLOOR_COLOR: 0x828890,
-      SCENE_BG: 0xb0b7be,
-      GRID_SUB: 0x6e747c,
-      GRID_MAJOR: 0x334155
+      SCENE_BG: 0xb0b7be
     };
 
     this.scene = new THREE.Scene();
@@ -167,17 +146,23 @@ class OfficeSimApp {
 
     // ★ レイアウト時専用グリッド（0.5mサブグリッド + 5mメジャーグリッド）
     this.editGridGroup = new THREE.Group();
-    // 0.5mサブグリッド (FIELD_SIZE 80m ÷ 0.5m = 160分割)
-    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 160, 0x64748b, 0x94a3b8);
-    subGrid.position.y = 0.003;
+
+    // 0.5m サブグリッド (80m ÷ 0.5m = 160分割)
+    const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 160, 0x38bdf8, 0x94a3b8);
+    subGrid.position.y = 0.01;
+    subGrid.material.depthWrite = false;
+    subGrid.material.transparent = true;
+    subGrid.material.opacity = 0.45;
+    subGrid.renderOrder = 90;
     this.editGridGroup.add(subGrid);
 
-    // 5mメジャーグリッド (FIELD_SIZE 80m ÷ 5m = 16分割)
-    const majorGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 16, 0x1e293b, 0x475569);
-    majorGrid.position.y = 0.005;
+    // 5m メジャーグリッド (80m ÷ 5m = 16分割)
+    const majorGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, 16, 0x0284c7, 0x1e293b);
+    majorGrid.position.y = 0.012;
+    majorGrid.material.depthWrite = false;
+    majorGrid.renderOrder = 91;
     this.editGridGroup.add(majorGrid);
 
-    // 通常モード時は非表示
     this.editGridGroup.visible = false;
     this.scene.add(this.editGridGroup);
 
@@ -256,6 +241,7 @@ class OfficeSimApp {
         layout = this.getDefaultLayoutForFloor(floorId);
       }
 
+      // 1. 家具・階段オブジェクトを配置
       layout.forEach(data => {
         const furniture = FurnitureFactory.create(data.type, data);
         this.scene.add(furniture);
@@ -280,8 +266,9 @@ class OfficeSimApp {
         this.scene.add(dn); this.floorObjects.push(dn);
       }
 
+      // 2. すべての下り階段の位置をくり抜いた床を生成
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
-      this.buildFittedFloorSurfaces(downStairs);
+      this.createHoleFloor(downStairs);
 
       await this.checkBoardUnread();
       this.refreshNPCs();
@@ -394,9 +381,10 @@ class OfficeSimApp {
     this.floorObjects.push(newObj);
     this.selectFurniture(newObj);
 
+    // ★ 下り階段が新しく設置されたら床の穴を再生成
     if (type === 'stairs_down') {
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
-      this.buildFittedFloorSurfaces(downStairs);
+      this.createHoleFloor(downStairs);
     }
   }
 
@@ -430,7 +418,7 @@ class OfficeSimApp {
 
     if (d.type === 'stairs_down') {
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
-      this.buildFittedFloorSurfaces(downStairs);
+      this.createHoleFloor(downStairs);
     }
   }
 
@@ -472,7 +460,6 @@ class OfficeSimApp {
     }
   }
 
-  // ★ 階移動モーション（暗転＋移動先階段からの出現モーション＋ジワリ明転）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
@@ -698,13 +685,12 @@ class OfficeSimApp {
     const carouselModal = document.getElementById('furniture-carousel-modal');
     const paletteFab = document.getElementById('btn-open-palette-fab');
 
-    // ★ レイアウトモード切替（レイアウト時だけ0.5m/5mグリッドを表示）
+    // ★ レイアウトモード切替（0.5m・5mグリッドの確実な表示／非表示）
     editBtn?.addEventListener('click', () => {
       this.isEditMode = !this.isEditMode;
       editBtn.classList.toggle('active', this.isEditMode);
       editBtn.innerText = this.isEditMode ? '保存して終了' : '🛠️ レイアウト';
 
-      // グリッドガイドの表示/非表示を切り替え
       if (this.editGridGroup) {
         this.editGridGroup.visible = this.isEditMode;
       }
@@ -783,8 +769,8 @@ class OfficeSimApp {
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        if (this.floorSurfacesGroup) {
-          const hits = this.raycaster.intersectObjects(this.floorSurfacesGroup.children);
+        if (this.floorPlane) {
+          const hits = this.raycaster.intersectObject(this.floorPlane);
           if (hits.length > 0) {
             const p = hits[0].point;
             const max = (CONFIG.FIELD_SIZE / 2) - 1.0;
@@ -810,6 +796,14 @@ class OfficeSimApp {
     });
 
     window.addEventListener('pointerup', () => {
+      if (this.isEditMode && this.isDragging && this.selectedObject) {
+        // 下り階段を移動した場合、床の穴を追従して再構築
+        if (this.selectedObject.userData.isStairsDown) {
+          const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
+          this.createHoleFloor(downStairs);
+        }
+      }
+
       if (!this.hasMovedPointer && !this.isEditMode) {
         this.mouse.x = (this.pointerStartPos.x / window.innerWidth) * 2 - 1;
         this.mouse.y = -(this.pointerStartPos.y / window.innerHeight) * 2 + 1;
