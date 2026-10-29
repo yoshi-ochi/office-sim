@@ -57,7 +57,7 @@ class OfficeSimApp {
     setTimeout(() => { el.style.display = 'none'; }, 200);
   }
 
-  // ★ 下り階段の位置を物理的にくり抜いた穴あき床メッシュを生成
+  // ★ 下り階段の位置を物理的にくり抜いた床メッシュの構築
   createHoleFloor(stairsDownObjects = []) {
     if (this.floorPlane) {
       this.scene.remove(this.floorPlane);
@@ -66,34 +66,34 @@ class OfficeSimApp {
 
     const S = CONFIG.FIELD_SIZE / 2; // 40
     const shape = new THREE.Shape();
-    // 外側の輪郭 (反時計回り: CCW)
+    // 外枠（XZ平面をXY平面として反時計回りに作成）
     shape.moveTo(-S, -S);
     shape.lineTo(S, -S);
     shape.lineTo(S, S);
     shape.lineTo(-S, S);
     shape.closePath();
 
-    // 各下り階段の位置に穴 (Hole: 時計回り CW) をあける
+    // 下り階段の位置に穴（時計回りで穴を作成）
     stairsDownObjects.forEach(obj => {
-      const pos = obj.position;
-      const hw = 0.85; // 階段の半幅
-      const hd = 1.25; // 階段の半奥行
+      const px = obj.position.x;
+      const pz = obj.position.z;
+      const hw = 0.9;  // 階段横幅の半分
+      const hd = 1.35; // 階段奥行きの半分
 
-      // floorPlane の rotation.x = -PI/2 より: 3D X = shape X, 3D Z = -shape Y
-      const sx = pos.x;
-      const sy = -pos.z;
-
+      // ShapeGeometry は rotation.x = -Math.PI/2 を適用するため、
+      // 3D空間の (X, Z) は Shapeの (X, Z) に一致
       const hole = new THREE.Path();
-      hole.moveTo(sx - hw, sy + hd); // 左上
-      hole.lineTo(sx + hw, sy + hd); // 右上
-      hole.lineTo(sx + hw, sy - hd); // 右下
-      hole.lineTo(sx - hw, sy - hd); // 左下
+      hole.moveTo(px - hw, pz - hd);
+      hole.lineTo(px - hw, pz + hd);
+      hole.lineTo(px + hw, pz + hd);
+      hole.lineTo(px + hw, pz - hd);
       hole.closePath();
       shape.holes.push(hole);
     });
 
     const floorGeo = new THREE.ShapeGeometry(shape);
     this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
+    // XZ平面（地面）に寝かせる
     this.floorPlane.rotation.x = -Math.PI / 2;
     this.floorPlane.receiveShadow = false;
     this.scene.add(this.floorPlane);
@@ -127,15 +127,15 @@ class OfficeSimApp {
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    this.floorMat = new THREE.MeshLambertMaterial({ color: theme.FLOOR_COLOR });
+    this.floorMat = new THREE.MeshLambertMaterial({ color: theme.FLOOR_COLOR, side: THREE.DoubleSide });
     this.createHoleFloor([]);
 
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, theme.GRID_SUB, theme.GRID_SUB);
-    subGrid.position.y = 0.003;
+    subGrid.position.y = 0.002;
     this.scene.add(subGrid);
 
     this.gridHelper = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.MAJOR_GRID_DIVISIONS, theme.GRID_MAJOR, theme.GRID_MAJOR);
-    this.gridHelper.position.y = 0.006;
+    this.gridHelper.position.y = 0.004;
     this.scene.add(this.gridHelper);
 
     this.player = new Player(this.scene);
@@ -242,7 +242,7 @@ class OfficeSimApp {
         this.scene.add(dn); this.floorObjects.push(dn);
       }
 
-      // ★ 下り階段オブジェクトを抽出し、その場所の床を完全にくり抜く
+      // 下り階段の位置に合わせて床を物理的に穴あけ
       const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
       this.createHoleFloor(downStairs);
 
@@ -356,6 +356,11 @@ class OfficeSimApp {
     this.scene.add(newObj);
     this.floorObjects.push(newObj);
     this.selectFurniture(newObj);
+
+    if (type === 'stairs_down') {
+      const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
+      this.createHoleFloor(downStairs);
+    }
   }
 
   rebuildFurnitureMesh(obj) {
@@ -385,6 +390,11 @@ class OfficeSimApp {
     }
     obj.userData = tempNew.userData;
     if (this.boxHelper) this.boxHelper.update();
+
+    if (d.type === 'stairs_down') {
+      const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
+      this.createHoleFloor(downStairs);
+    }
   }
 
   selectFurniture(obj) {
@@ -425,7 +435,7 @@ class OfficeSimApp {
     }
   }
 
-  // ★ 階移動モーション（Canvas evenodd 方式：長方形の内側かつ円の外側を黒くして縮小）
+  // ★ 階移動モーション（長方形の内側かつ円の外側を黒くする Canvas evenodd 描画）
   async triggerFloorTransition(targetFloor, arrivalType, interactObj) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
@@ -472,15 +482,17 @@ class OfficeSimApp {
       const cy = (-(p.y * 0.5) + 0.5) * cvs.height;
       const maxRadius = Math.hypot(cvs.width, cvs.height);
 
-      // 長方形の内側 且つ 円の外側 を黒くする偶奇塗り (evenodd)
       const drawCutoutHole = (r) => {
         ctx.clearRect(0, 0, cvs.width, cvs.height);
         ctx.fillStyle = '#0b0f19';
         ctx.beginPath();
+        // 外側の長方形（全画面）
         ctx.rect(0, 0, cvs.width, cvs.height);
+        // 内側の型抜き円（半径 r）
         if (r > 0) {
           ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
         }
+        // 長方形の内側 且つ 円の外側 だけが黒くなる
         ctx.fill('evenodd');
       };
 
@@ -499,7 +511,6 @@ class OfficeSimApp {
         requestAnimationFrame(anim1);
       });
 
-      // キャラクターだけが見えている状態で一瞬キープ
       await new Promise(r => setTimeout(r, 120));
 
       // フェーズ2: 最後にキャラクター頭元の穴（45px -> 0px）が閉じて完全暗転
