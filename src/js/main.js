@@ -37,6 +37,8 @@ class OfficeSimApp {
 
     this.collidingObject = null;
     this.collisionTimer = 0;
+    this.activeTriggerPadObj = null;
+    this.triggerPadTimer = 0;
     this.isModalActive = false;
     this.isTransitioning = false;
     this.currentUser = null;
@@ -1324,6 +1326,8 @@ class OfficeSimApp {
     this.isModalActive = false;
     this.collisionTimer = 0;
     this.collidingObject = null;
+    this.triggerPadTimer = 0;
+    this.activeTriggerPadObj = null;
   }
 
   showModal(title, body) {
@@ -1351,25 +1355,40 @@ class OfficeSimApp {
     this.updateCamera(this.player.position.x, this.player.position.z);
     this.minimap.update(this.player.position, this.floorObjects);
 
-    // ★ 物理板（正面透明トリガー）への接触判定：触れたら即座にその設備自身で発火！
+    // ★ 物理板（正面透明トリガー）への接触判定：接触後1.2秒継続で発火
     const triggerTarget = this.checkTriggerPad();
     if (triggerTarget && !this.isTransitioning && !this.isModalActive) {
-      if (triggerTarget.userData.isStairsUp) {
-        if (this.currentFloor < CONFIG.FLOORS.length) {
-          this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', triggerTarget);
-        } else {
-          alert('最上階のためこれ以上上がれません。');
+      if (this.activeTriggerPadObj === triggerTarget) {
+        this.triggerPadTimer += delta;
+        if (this.triggerPadTimer >= 1.2) {
+          this.triggerPadTimer = 0;
+          const targetObj = this.activeTriggerPadObj;
+          this.activeTriggerPadObj = null;
+
+          if (targetObj.userData.isStairsUp) {
+            if (this.currentFloor < CONFIG.FLOORS.length) {
+              this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', targetObj);
+            } else {
+              alert('最上階のためこれ以上上がれません。');
+            }
+          } else if (targetObj.userData.isStairsDown) {
+            if (this.currentFloor > 1) {
+              this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', targetObj);
+            } else {
+              alert('1階のためこれ以上下りられません。');
+            }
+          } else if (targetObj.userData.isElevator) {
+            this.triggerElevator(targetObj);
+          }
+          return;
         }
-      } else if (triggerTarget.userData.isStairsDown) {
-        if (this.currentFloor > 1) {
-          this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', triggerTarget);
-        } else {
-          alert('1階のためこれ以上下りられません。');
-        }
-      } else if (triggerTarget.userData.isElevator) {
-        this.triggerElevator(triggerTarget);
+      } else {
+        this.activeTriggerPadObj = triggerTarget;
+        this.triggerPadTimer = 0;
       }
-      return;
+    } else {
+      this.activeTriggerPadObj = null;
+      this.triggerPadTimer = 0;
     }
 
     // 一般家具（デスクやプリンター）の接触モーダル
@@ -1405,3 +1424,4 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
