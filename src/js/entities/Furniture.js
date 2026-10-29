@@ -337,12 +337,11 @@ export class FurnitureFactory {
     const ind = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
     ind.position.set(0, h - 0.25, d / 2 + 0.05); group.add(ind);
 
-    // ★ エレベーター最前面の透明板（めり込み防止ストッパー兼トリガー）
-    // 幅2.2mの最前面（z = d/2 + 0.15）に厚み0.3mで配置
-    const triggerGeo = new THREE.BoxGeometry(w, 2.0, 0.3);
+    // ★ 正面扉の開口部のみに配置する透明トリガー板（幅1.3m、手前足元）
+    const triggerGeo = new THREE.BoxGeometry(doorW * 2.0, 1.0, 0.4);
     const triggerMat = new THREE.MeshBasicMaterial({ visible: false });
     const triggerMesh = new THREE.Mesh(triggerGeo, triggerMat);
-    triggerMesh.position.set(0, 1.0, d / 2 + 0.15);
+    triggerMesh.position.set(0, 0.5, d / 2 + 0.22);
     group.add(triggerMesh);
     parentGroup.userData.entryTrigger = triggerMesh;
 
@@ -445,5 +444,6 @@ export class FurnitureFactory {
     mesh.position.y = 0.4; return mesh;
   }
 }
+
 
 

@@ -934,18 +934,8 @@ class OfficeSimApp {
     }
     const data = obj.userData;
 
-    if (data.isStairsUp) {
-      if (this.currentFloor < CONFIG.FLOORS.length) this.triggerFloorTransition(this.currentFloor + 1, 'stairs_up', obj);
-      else alert('最上階のためこれ以上上がれません。');
-      return;
-    }
-    if (data.isStairsDown) {
-      if (this.currentFloor > 1) this.triggerFloorTransition(this.currentFloor - 1, 'stairs_down', obj);
-      else alert('1階のためこれ以上下りられません。');
-      return;
-    }
-    if (data.isElevator) {
-      this.triggerElevator(obj);
+    // 階段・エレベーターは正面透明板を踏んだ時のみ発火するため、クリックや壁接触では発火させない
+    if (data.isStairsUp || data.isStairsDown || data.isElevator) {
       return;
     }
 
@@ -1404,9 +1394,12 @@ class OfficeSimApp {
       this.triggerPadTimer = 0;
     }
 
-    // 一般家具（デスクやプリンター）の接触モーダル
+    // 一般家具（デスク・プリンター・掲示板等）のみ壁接触でモーダル表示
+    // ※ 階段・エレベーターは四方の壁にいくらぶつかってもイベント発火させない
     const isMovingInput = Math.hypot(vx, vy) > 0.05;
-    if (!this.isModalActive && !this.isTransitioning && hitWall && isMovingInput) {
+    const isSpecialTransit = hitWall && (hitWall.userData.isStairsUp || hitWall.userData.isStairsDown || hitWall.userData.isElevator);
+
+    if (!this.isModalActive && !this.isTransitioning && hitWall && !isSpecialTransit && isMovingInput) {
       if (this.collidingObject === hitWall) {
         this.collisionTimer += delta;
         if (this.collisionTimer >= 0.4) {
@@ -1437,6 +1430,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
