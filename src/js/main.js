@@ -85,12 +85,8 @@ class OfficeSimApp {
     dirLight.castShadow = false;
     this.scene.add(dirLight);
 
-    const floorGeo = new THREE.PlaneGeometry(CONFIG.FIELD_SIZE, CONFIG.FIELD_SIZE);
     this.floorMat = new THREE.MeshLambertMaterial({ color: theme.FLOOR_COLOR });
-    this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
-    this.floorPlane.rotation.x = -Math.PI / 2;
-    this.floorPlane.receiveShadow = false;
-    this.scene.add(this.floorPlane);
+    this.createHoleFloor([]);
 
     const subGrid = new THREE.GridHelper(CONFIG.FIELD_SIZE, CONFIG.GRID_DIVISIONS, theme.GRID_SUB, theme.GRID_SUB);
     subGrid.position.y = 0.003;
@@ -157,6 +153,44 @@ class OfficeSimApp {
     return null;
   }
 
+    // 下り階段の位置を物理的にくり抜いた床メッシュを生成
+  createHoleFloor(stairsDownObjects = []) {
+    if (this.floorPlane) {
+      this.scene.remove(this.floorPlane);
+      if (this.floorPlane.geometry) this.floorPlane.geometry.dispose();
+    }
+
+    const S = CONFIG.FIELD_SIZE / 2;
+    const shape = new THREE.Shape();
+    // 外枠 (80m x 80m)
+    shape.moveTo(-S, -S);
+    shape.lineTo(S, -S);
+    shape.lineTo(S, S);
+    shape.lineTo(-S, S);
+    shape.closePath();
+
+    // 各下り階段の位置に穴 (Hole) をあける
+    stairsDownObjects.forEach(obj => {
+      const pos = obj.position || obj;
+      const hw = 0.75; // 階段の半幅 (幅1.5m)
+      const hd = 1.05; // 階段の奥行き (2.1m)
+
+      const hole = new THREE.Path();
+      hole.moveTo(pos.x - hw, pos.z - hd);
+      hole.lineTo(pos.x + hw, pos.z - hd);
+      hole.lineTo(pos.x + hw, pos.z + hd);
+      hole.lineTo(pos.x - hw, pos.z + hd);
+      hole.closePath();
+      shape.holes.push(hole);
+    });
+
+    const floorGeo = new THREE.ShapeGeometry(shape);
+    this.floorPlane = new THREE.Mesh(floorGeo, this.floorMat);
+    this.floorPlane.rotation.x = -Math.PI / 2;
+    this.floorPlane.receiveShadow = false;
+    this.scene.add(this.floorPlane);
+  }
+
   async loadFloor(floorId, silent = false) {
     if (!silent) this.showLoading();
     try {
@@ -203,6 +237,10 @@ class OfficeSimApp {
         const dn = FurnitureFactory.create('stairs_down', { x: 16, z: -16, rotation: 0, role: '下り階段' });
         this.scene.add(dn); this.floorObjects.push(dn);
       }
+
+            // 下り階段の位置を取得して床をくり抜く
+      const downStairs = this.floorObjects.filter(o => o.userData.isStairsDown);
+      this.createHoleFloor(downStairs);
 
       await this.checkBoardUnread();
       this.refreshNPCs();
@@ -1240,3 +1278,4 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
