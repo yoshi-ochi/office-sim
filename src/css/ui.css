@@ -352,7 +352,9 @@
 }
 
 
-/* --- レイヤー順序・ログイン完全グレー化パッチ --- */
+
+
+/* --- 正確なレイヤー順序とログイン完全グレー化 --- */
 #ui-layer {
   position: fixed;
   inset: 0;
@@ -360,12 +362,16 @@
   z-index: 10;
 }
 
+#ui-layer > * {
+  pointer-events: auto;
+}
+
 #minimap-container {
   z-index: 20 !important;
 }
 
 #furniture-carousel-modal {
-  z-index: 60 !important;
+  z-index: 50 !important;
 }
 
 #info-modal {
