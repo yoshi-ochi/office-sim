@@ -1219,6 +1219,8 @@ class OfficeSimApp {
   // --- Workflows シート完全準拠: 業務シフト 簡易マニュアルフロー表示（ワイド＆快適スクロール化） ---
 
   // --- Workflows シート完全準拠: スマホ完全フィット（横スクロールなし）対応 ---
+
+  // --- Workflows シート: 折り返しなし & ピンチイン・アウトズーム対応 ---
   async openWorkflowsTableModal() {
     this.showLoading();
     let workflows = [];
@@ -1241,6 +1243,7 @@ class OfficeSimApp {
     }
 
     let activeTab = 'day';
+    let currentScale = window.innerWidth <= 768 ? 0.65 : 1.0;
 
     const renderContent = () => {
       let filtered = [];
@@ -1296,7 +1299,7 @@ class OfficeSimApp {
       if (timeGroups.length === 0) {
         tableRowsHtml = `
           <tr>
-            <td colspan="3" style="padding: 24px; text-align: center; color: #64748b; background: #ffffff; font-size: 12px;">
+            <td colspan="3" style="padding: 24px; text-align: center; color: #64748b; background: #ffffff; white-space: nowrap;">
               該当するデータがスプレッドシート（Workflows）にありません。
             </td>
           </tr>
@@ -1338,7 +1341,7 @@ class OfficeSimApp {
 
             if (isFirst) {
               tableRowsHtml += `
-                <td rowspan="${rowsInGroup.length}" style="width: 14%; padding: 6px 2px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #f8fafc; font-size: 11px; color: #0f172a; word-break: break-all;">
+                <td rowspan="${rowsInGroup.length}" style="padding: 8px 12px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #f8fafc; font-size: 13px; color: #0f172a; white-space: nowrap;">
                   ${g.timeDisplay}
                 </td>
               `;
@@ -1347,9 +1350,9 @@ class OfficeSimApp {
             if (r.type === 'common') {
               const bg = getBg(r.item.weekendType);
               tableRowsHtml += `
-                <td colspan="2" style="padding: 6px 6px; background: ${bg}; vertical-align: top; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000;">
-                  <div style="font-weight: bold; font-size: 11px; color: #0f172a; text-align: center; margin-bottom: 2px; word-break: break-word;">${r.item.task}</div>
-                  <div style="font-size: 10px; color: #334155; line-height: 1.3; text-align: left; white-space: pre-wrap; word-break: break-word;">${r.item.brief}</div>
+                <td colspan="2" style="padding: 6px 14px; background: ${bg}; vertical-align: middle; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000; white-space: nowrap;">
+                  <span style="font-weight: bold; font-size: 13px; color: #0f172a; margin-right: 10px;">${r.item.task}</span>
+                  <span style="font-size: 12px; color: #334155;">${r.item.brief}</span>
                 </td>
               `;
             } else {
@@ -1357,16 +1360,16 @@ class OfficeSimApp {
               const lBg = getBg(r.late?.weekendType);
 
               tableRowsHtml += `
-                <td style="width: 43%; padding: 6px 5px; vertical-align: top; border-right: 1px solid #000000; background: ${eBg};">
+                <td style="padding: 6px 14px; vertical-align: middle; border-right: 1px solid #000000; background: ${eBg}; white-space: nowrap;">
                   ${r.early ? `
-                    <div style="font-weight: bold; font-size: 11px; color: #0f172a; text-align: center; margin-bottom: 2px; word-break: break-word;">${r.early.task}</div>
-                    <div style="font-size: 10px; color: #334155; line-height: 1.3; text-align: left; white-space: pre-wrap; word-break: break-word;">${r.early.brief}</div>
+                    <span style="font-weight: bold; font-size: 13px; color: #0f172a; margin-right: 8px;">${r.early.task}</span>
+                    <span style="font-size: 12px; color: #334155;">${r.early.brief}</span>
                   ` : ''}
                 </td>
-                <td style="width: 43%; padding: 6px 5px; vertical-align: top; background: ${lBg};">
+                <td style="padding: 6px 14px; vertical-align: middle; background: ${lBg}; white-space: nowrap;">
                   ${r.late ? `
-                    <div style="font-weight: bold; font-size: 11px; color: #0f172a; text-align: center; margin-bottom: 2px; word-break: break-word;">${r.late.task}</div>
-                    <div style="font-size: 10px; color: #334155; line-height: 1.3; text-align: left; white-space: pre-wrap; word-break: break-word;">${r.late.brief}</div>
+                    <span style="font-weight: bold; font-size: 13px; color: #0f172a; margin-right: 8px;">${r.late.task}</span>
+                    <span style="font-size: 12px; color: #334155;">${r.late.brief}</span>
                   ` : ''}
                 </td>
               `;
@@ -1378,31 +1381,44 @@ class OfficeSimApp {
       }
 
       return `
-        <div style="display: flex; flex-direction: column; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; box-sizing: border-box;">
-          <!-- 上部タブ -->
-          <div style="display: flex; gap: 6px; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 6px; overflow-x: auto;">
-            <button class="wf-tab-btn" data-tab="day" style="flex: 1; padding: 6px 4px; border-radius: 6px; border: 1px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (平日)</button>
-            <button class="wf-tab-btn" data-tab="night" style="flex: 1; padding: 6px 4px; border-radius: 6px; border: 1px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">夜勤</button>
-            <button class="wf-tab-btn" data-tab="weekend" style="flex: 1; padding: 6px 4px; border-radius: 6px; border: 1px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (土日祝)</button>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; height: 100%; box-sizing: border-box;">
+          <!-- 上部コントロール（タブ ＋ ズームバー） -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+            <div style="display: flex; gap: 6px;">
+              <button class="wf-tab-btn" data-tab="day" style="padding: 5px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (平日)</button>
+              <button class="wf-tab-btn" data-tab="night" style="padding: 5px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">夜勤</button>
+              <button class="wf-tab-btn" data-tab="weekend" style="padding: 5px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (土日祝)</button>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 2px 6px; border-radius: 6px;">
+              <button id="wf-zoom-out" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔍-</button>
+              <button id="wf-zoom-reset" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #0284c7; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><span id="wf-zoom-percent">${Math.round(currentScale * 100)}%</span></button>
+              <button id="wf-zoom-in" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔍+</button>
+            </div>
           </div>
 
-          <!-- フロー表カード（横幅100%固定・横スクロールなし） -->
-          <div style="background: #ffffff; border: 2px solid #000000; border-radius: 4px; overflow: hidden; width: 100%; box-sizing: border-box;">
-            <div style="padding: 8px 4px; text-align: center; font-size: 14px; font-weight: bold; background: #ffffff; border-bottom: 2px solid #000000; letter-spacing: 0.02em; color: #000000;">
-              ${sheetTitle}
+          <!-- スクロール＆タッチビューポート -->
+          <div id="wf-viewport" style="flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;">
+            <!-- ピンチ／ズーム変形コンテナ -->
+            <div id="wf-transform-box" style="transform-origin: 0 0; transform: scale(${currentScale}); width: fit-content; min-width: 100%; transition: transform 0.08s ease-out;">
+              <div style="background: #ffffff; border: 2px solid #000000; border-radius: 4px; overflow: hidden; width: fit-content; min-width: 100%;">
+                <div style="padding: 8px 16px; text-align: center; font-size: 15px; font-weight: bold; background: #ffffff; border-bottom: 2px solid #000000; letter-spacing: 0.04em; color: #000000; white-space: nowrap;">
+                  ${sheetTitle}
+                </div>
+                <table style="border-collapse: collapse; font-family: sans-serif; width: 100%;">
+                  <thead>
+                    <tr style="background: #f1f5f9; border-bottom: 1.5px solid #000000;">
+                      <th style="padding: 8px 12px; border-right: 1.5px solid #000000; text-align: center; font-size: 12px; color: #000000; white-space: nowrap;">時間帯</th>
+                      <th style="padding: 8px 16px; border-right: 1px solid #000000; text-align: center; font-size: 12px; color: #000000; white-space: nowrap;">早番</th>
+                      <th style="padding: 8px 16px; text-align: center; font-size: 12px; color: #000000; white-space: nowrap;">遅番</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${tableRowsHtml}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; table-layout: fixed;">
-              <thead>
-                <tr style="background: #f1f5f9; border-bottom: 1.5px solid #000000;">
-                  <th style="width: 14%; padding: 6px 2px; border-right: 1.5px solid #000000; text-align: center; font-size: 11px; color: #000000;">時間</th>
-                  <th style="width: 43%; padding: 6px 4px; border-right: 1px solid #000000; text-align: center; font-size: 11px; color: #000000;">早番</th>
-                  <th style="width: 43%; padding: 6px 4px; text-align: center; font-size: 11px; color: #000000;">遅番</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${tableRowsHtml}
-              </tbody>
-            </table>
           </div>
         </div>
       `;
@@ -1426,17 +1442,65 @@ class OfficeSimApp {
       const modalContent = document.getElementById('modal-content');
       if (modalContent) {
         modalContent.style.flex = '1';
-        modalContent.style.overflowY = 'auto';
-        modalContent.style.overflowX = 'hidden';
-        modalContent.style.padding = isMobile ? '4px 2px' : '12px 16px';
+        modalContent.style.overflow = 'hidden';
+        modalContent.style.padding = '0';
       }
 
+      // タブ切り替えリスナー
       modalContent?.querySelectorAll('.wf-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           activeTab = e.currentTarget.getAttribute('data-tab');
           mountModal();
         });
       });
+
+      const transformBox = document.getElementById('wf-transform-box');
+      const zoomPercent = document.getElementById('wf-zoom-percent');
+      const viewport = document.getElementById('wf-viewport');
+
+      const applyScale = (newScale) => {
+        currentScale = Math.max(0.35, Math.min(2.5, newScale));
+        if (transformBox) transformBox.style.transform = `scale(${currentScale})`;
+        if (zoomPercent) zoomPercent.textContent = `${Math.round(currentScale * 100)}%`;
+      };
+
+      // ズームボタン操作
+      document.getElementById('wf-zoom-in')?.addEventListener('click', () => applyScale(currentScale + 0.15));
+      document.getElementById('wf-zoom-out')?.addEventListener('click', () => applyScale(currentScale - 0.15));
+      document.getElementById('wf-zoom-reset')?.addEventListener('click', () => applyScale(isMobile ? 0.65 : 1.0));
+
+      // スマホ向け 2本指ピンチイン・アウトジェスチャー
+      let initialDistance = 0;
+      let startScale = currentScale;
+
+      if (viewport) {
+        viewport.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 2) {
+            initialDistance = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            startScale = currentScale;
+          }
+        }, { passive: true });
+
+        viewport.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 2 && initialDistance > 0) {
+            const currentDistance = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            const factor = currentDistance / initialDistance;
+            applyScale(startScale * factor);
+          }
+        }, { passive: true });
+
+        viewport.addEventListener('touchend', (e) => {
+          if (e.touches.length < 2) {
+            initialDistance = 0;
+          }
+        }, { passive: true });
+      }
     };
 
     mountModal();
@@ -1572,6 +1636,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
