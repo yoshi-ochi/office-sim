@@ -1401,7 +1401,7 @@ class OfficeSimApp {
           </div>
 
           <!-- スクロール＆タッチビューポート -->
-          <div id="wf-viewport" style="flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;">
+          <div id="wf-viewport" style="flex: 1; overflow: auto; position: relative; touch-action: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;">
             <div id="wf-transform-box" style="transform-origin: 0 0; width: max-content; transition: transform 0.08s ease-out;">
               <div id="wf-card-inner" style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; width: max-content; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
                 <div style="padding: 10px 16px; text-align: center; font-size: 16px; font-weight: bold; background: #ffffff; border-bottom: 2.5px solid #000000; letter-spacing: 0.04em; color: #000000; white-space: pre;">
@@ -1443,7 +1443,7 @@ class OfficeSimApp {
       }
       const modalContent = document.getElementById('modal-content');
       if (modalContent) {
-        modalContent.style.flex = '1';
+        modalContent.style.flex = '1 1 auto'; modalContent.style.minHeight = '0';
         modalContent.style.overflow = 'hidden';
         modalContent.style.padding = '0';
       }
@@ -1486,7 +1486,9 @@ class OfficeSimApp {
       let startScale = currentScale;
 
       if (viewport) {
+        // 1本指での上下スクロールが親のThree.jsやオーバーレイのpreventDefaultに吸われないよう親伝播を遮断
         viewport.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
           if (e.touches.length === 2) {
             initialDistance = Math.hypot(
               e.touches[0].clientX - e.touches[1].clientX,
@@ -1494,10 +1496,12 @@ class OfficeSimApp {
             );
             startScale = currentScale;
           }
-        }, { passive: true });
+        }, { passive: false });
 
         viewport.addEventListener('touchmove', (e) => {
+          e.stopPropagation();
           if (e.touches.length === 2 && initialDistance > 0) {
+            if (e.cancelable) e.preventDefault(); // ピンチズーム時のみブラウザ標準スクロールを停止
             const currentDistance = Math.hypot(
               e.touches[0].clientX - e.touches[1].clientX,
               e.touches[0].clientY - e.touches[1].clientY
@@ -1505,13 +1509,14 @@ class OfficeSimApp {
             const factor = currentDistance / initialDistance;
             applyScale(startScale * factor);
           }
-        }, { passive: true });
+        }, { passive: false });
 
         viewport.addEventListener('touchend', (e) => {
+          e.stopPropagation();
           if (e.touches.length < 2) {
             initialDistance = 0;
           }
-        }, { passive: true });
+        }, { passive: false });
       }
     };
 
@@ -1648,6 +1653,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
