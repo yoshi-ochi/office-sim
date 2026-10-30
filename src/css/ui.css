@@ -368,3 +368,24 @@
   opacity: 1 !important;
   z-index: 100000 !important;
 }
+
+
+/* --- ミニマップとモーダルの重なり順修正 --- */
+#minimap-container {
+  z-index: 10 !important;
+}
+
+#furniture-carousel-modal {
+  z-index: 100 !important;
+}
+
+.modal-overlay,
+#info-modal {
+  z-index: 9999 !important;
+}
+
+#login-overlay {
+  background-color: #334155 !important;
+  opacity: 1 !important;
+  z-index: 100000 !important;
+}
