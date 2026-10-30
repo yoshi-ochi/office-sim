@@ -1434,8 +1434,8 @@ class OfficeSimApp {
       if (modalWindow) {
         modalWindow.style.maxWidth = isMobile ? '98vw' : '1200px';
         modalWindow.style.width = isMobile ? '98vw' : '92vw';
-        modalWindow.style.maxHeight = '92vh';
-        modalWindow.style.height = '92vh';
+        modalWindow.style.maxHeight = isMobile ? 'calc(100dvh - 64px)' : '88vh';
+        modalWindow.style.height = isMobile ? 'calc(100dvh - 64px)' : '88vh';
         modalWindow.style.display = 'flex';
         modalWindow.style.flexDirection = 'column';
         modalWindow.style.padding = isMobile ? '6px 4px' : '16px';
@@ -1648,6 +1648,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 

@@ -480,3 +480,27 @@
     height: 60vh !important;
   }
 }
+
+
+/* --- スマホブラウザのツールバー・セーフエリア内側収容パッチ --- */
+.modal-overlay,
+#info-modal {
+  padding-top: max(10px, env(safe-area-inset-top)) !important;
+  padding-bottom: max(24px, env(safe-area-inset-bottom) + 16px) !important;
+  padding-left: max(8px, env(safe-area-inset-left)) !important;
+  padding-right: max(8px, env(safe-area-inset-right)) !important;
+  box-sizing: border-box !important;
+}
+
+@media screen and (max-width: 768px) {
+  .modal-window {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 40px) !important;
+    height: auto !important;
+    margin-bottom: auto !important;
+    margin-top: auto !important;
+  }
+
+  .modal-footer {
+    padding-bottom: 8px !important;
+  }
+}
