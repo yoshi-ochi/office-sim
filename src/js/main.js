@@ -1223,6 +1223,8 @@ class OfficeSimApp {
   // --- Workflows シート: 折り返しなし & ピンチイン・アウトズーム対応 ---
 
   // --- Workflows シート: スプシ内の改行のみ保持 & 勝手な折り返しを完全排除 ---
+
+  // --- Workflows シート: 自動全体フィット（オートスケール）& ピンチズーム ---
   async openWorkflowsTableModal() {
     this.showLoading();
     let workflows = [];
@@ -1245,7 +1247,7 @@ class OfficeSimApp {
     }
 
     let activeTab = 'day';
-    let currentScale = window.innerWidth <= 768 ? 0.65 : 1.0;
+    let currentScale = 1.0;
 
     const renderContent = () => {
       let filtered = [];
@@ -1341,7 +1343,6 @@ class OfficeSimApp {
 
             tableRowsHtml += `<tr style="${borderBottom}">`;
 
-            // 時間帯セル（スプシ内の改行のみ反映、勝手な自動折り返しなし）
             if (isFirst) {
               tableRowsHtml += `
                 <td rowspan="${rowsInGroup.length}" style="padding: 10px 14px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #f8fafc; font-size: 13px; color: #0f172a; white-space: pre; line-height: 1.4;">${g.timeDisplay}</td>
@@ -1383,26 +1384,26 @@ class OfficeSimApp {
 
       return `
         <div style="display: flex; flex-direction: column; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; height: 100%; box-sizing: border-box;">
-          <!-- 上部コントロール（タブ ＋ ズームバー） -->
+          <!-- 上部コントロール -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 6px; flex-wrap: wrap; gap: 6px;">
             <div style="display: flex; gap: 6px;">
-              <button class="wf-tab-btn" data-tab="day" style="padding: 6px 14px; border-radius: 6px; border: 1px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (平日)</button>
-              <button class="wf-tab-btn" data-tab="night" style="padding: 6px 14px; border-radius: 6px; border: 1px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">夜勤</button>
-              <button class="wf-tab-btn" data-tab="weekend" style="padding: 6px 14px; border-radius: 6px; border: 1px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (土日祝)</button>
+              <button class="wf-tab-btn" data-tab="day" style="padding: 6px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (平日)</button>
+              <button class="wf-tab-btn" data-tab="night" style="padding: 6px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">夜勤</button>
+              <button class="wf-tab-btn" data-tab="weekend" style="padding: 6px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (土日祝)</button>
             </div>
             
             <div style="display: flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 2px 6px; border-radius: 6px;">
+              <button id="wf-zoom-fit" style="border: none; background: #0284c7; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">全体</button>
               <button id="wf-zoom-out" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔍-</button>
-              <button id="wf-zoom-reset" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #0284c7; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><span id="wf-zoom-percent">${Math.round(currentScale * 100)}%</span></button>
+              <button id="wf-zoom-reset" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #0284c7; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><span id="wf-zoom-percent">100%</span></button>
               <button id="wf-zoom-in" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔍+</button>
             </div>
           </div>
 
           <!-- スクロール＆タッチビューポート -->
           <div id="wf-viewport" style="flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;">
-            <!-- ピンチ／ズーム変形コンテナ -->
-            <div id="wf-transform-box" style="transform-origin: 0 0; transform: scale(${currentScale}); width: max-content; transition: transform 0.08s ease-out;">
-              <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; width: max-content; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+            <div id="wf-transform-box" style="transform-origin: 0 0; width: max-content; transition: transform 0.08s ease-out;">
+              <div id="wf-card-inner" style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; width: max-content; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
                 <div style="padding: 10px 16px; text-align: center; font-size: 16px; font-weight: bold; background: #ffffff; border-bottom: 2.5px solid #000000; letter-spacing: 0.04em; color: #000000; white-space: pre;">
                   ${sheetTitle}
                 </div>
@@ -1437,7 +1438,7 @@ class OfficeSimApp {
         modalWindow.style.height = '92vh';
         modalWindow.style.display = 'flex';
         modalWindow.style.flexDirection = 'column';
-        modalWindow.style.padding = isMobile ? '8px 6px' : '16px';
+        modalWindow.style.padding = isMobile ? '6px 4px' : '16px';
         modalWindow.style.boxSizing = 'border-box';
       }
       const modalContent = document.getElementById('modal-content');
@@ -1447,7 +1448,6 @@ class OfficeSimApp {
         modalContent.style.padding = '0';
       }
 
-      // タブ切り替えリスナー
       modalContent?.querySelectorAll('.wf-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           activeTab = e.currentTarget.getAttribute('data-tab');
@@ -1458,19 +1458,35 @@ class OfficeSimApp {
       const transformBox = document.getElementById('wf-transform-box');
       const zoomPercent = document.getElementById('wf-zoom-percent');
       const viewport = document.getElementById('wf-viewport');
+      const cardInner = document.getElementById('wf-card-inner');
 
       const applyScale = (newScale) => {
-        currentScale = Math.max(0.35, Math.min(2.5, newScale));
+        currentScale = Math.max(0.2, Math.min(2.5, newScale));
         if (transformBox) transformBox.style.transform = `scale(${currentScale})`;
         if (zoomPercent) zoomPercent.textContent = `${Math.round(currentScale * 100)}%`;
       };
 
-      // ズームボタン操作
-      document.getElementById('wf-zoom-in')?.addEventListener('click', () => applyScale(currentScale + 0.15));
-      document.getElementById('wf-zoom-out')?.addEventListener('click', () => applyScale(currentScale - 0.15));
-      document.getElementById('wf-zoom-reset')?.addEventListener('click', () => applyScale(isMobile ? 0.65 : 1.0));
+      // 画面幅に合わせて表全体が100%収まる倍率を自動算出
+      const fitToWidth = () => {
+        if (!viewport || !cardInner) return;
+        const availableW = viewport.clientWidth - 4;
+        const tableW = cardInner.scrollWidth || 1;
+        if (tableW > 0 && availableW > 0) {
+          const fitScale = Math.min(1.0, availableW / tableW);
+          applyScale(fitScale);
+        }
+      };
 
-      // スマホ向け 2本指ピンチイン・アウトジェスチャー
+      // 初回描画直後に自動フィット実行
+      setTimeout(fitToWidth, 30);
+
+      // 各種操作
+      document.getElementById('wf-zoom-fit')?.addEventListener('click', fitToWidth);
+      document.getElementById('wf-zoom-in')?.addEventListener('click', () => applyScale(currentScale + 0.1));
+      document.getElementById('wf-zoom-out')?.addEventListener('click', () => applyScale(currentScale - 0.1));
+      document.getElementById('wf-zoom-reset')?.addEventListener('click', () => applyScale(1.0));
+
+      // 2本指ピンチ操作
       let initialDistance = 0;
       let startScale = currentScale;
 
@@ -1637,6 +1653,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
