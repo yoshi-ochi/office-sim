@@ -1215,6 +1215,8 @@ class OfficeSimApp {
   // --- GAS生成仕様完全準拠: 業務シフト 簡易マニュアルフロー表示 ---
 
   // --- Workflows シート完全準拠: 業務シフト 簡易マニュアルフロー表示 ---
+
+  // --- Workflows シート完全準拠: 業務シフト 簡易マニュアルフロー表示（ワイド＆快適スクロール化） ---
   async openWorkflowsTableModal() {
     this.showLoading();
     let workflows = [];
@@ -1222,7 +1224,6 @@ class OfficeSimApp {
       const res = await this.sheetService.postToGas({ action: 'getWorkflows' });
       const rawList = Array.isArray(res) ? res : (res?.workflows || res?.data || []);
       
-      // Workflows シートのカラム（英名・和名両対応）を正規化
       workflows = rawList.map(r => ({
         shift: String(r.shift ?? r['シフト'] ?? '').trim(),
         timeGroup: String(r.timeGroup ?? r['時間帯'] ?? r.time ?? '').trim(),
@@ -1259,7 +1260,6 @@ class OfficeSimApp {
         });
       }
 
-      // 時間帯（timeGroup）ごとに整理
       const timeGroups = [];
       let currentGroup = null;
 
@@ -1294,7 +1294,7 @@ class OfficeSimApp {
       if (timeGroups.length === 0) {
         tableRowsHtml = `
           <tr>
-            <td colspan="3" style="padding: 30px; text-align: center; color: #64748b; background: #ffffff;">
+            <td colspan="3" style="padding: 40px; text-align: center; color: #64748b; background: #ffffff; font-size: 14px;">
               該当するデータがスプレッドシート（Workflows）にありません。
             </td>
           </tr>
@@ -1330,13 +1330,13 @@ class OfficeSimApp {
           rowsInGroup.forEach((r, idx) => {
             const isFirst = (idx === 0);
             const isLast = (idx === rowsInGroup.length - 1);
-            const borderBottom = isLast ? 'border-bottom: 2px solid #000000;' : 'border-bottom: 1px dotted #cbd5e1;';
+            const borderBottom = isLast ? 'border-bottom: 2.5px solid #000000;' : 'border-bottom: 1px dotted #94a3b8;';
 
             tableRowsHtml += `<tr style="${borderBottom}">`;
 
             if (isFirst) {
               tableRowsHtml += `
-                <td rowspan="${rowsInGroup.length}" style="width: 15%; padding: 12px 6px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #fafafa; font-size: 14px; color: #0f172a;">
+                <td rowspan="${rowsInGroup.length}" style="width: 12%; min-width: 90px; padding: 14px 8px; font-weight: bold; text-align: center; vertical-align: top; border-right: 2px solid #000000; background: #f8fafc; font-size: 15px; color: #0f172a; letter-spacing: 0.05em;">
                   ${g.timeDisplay}
                 </td>
               `;
@@ -1345,9 +1345,9 @@ class OfficeSimApp {
             if (r.type === 'common') {
               const bg = getBg(r.item.weekendType);
               tableRowsHtml += `
-                <td colspan="2" style="padding: 10px 14px; background: ${bg}; vertical-align: top; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000;">
-                  <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px;">${r.item.task}</div>
-                  <div style="font-size: 12px; color: #334155; line-height: 1.5; text-align: left; white-space: pre-wrap;">${r.item.brief}</div>
+                <td colspan="2" style="padding: 12px 18px; background: ${bg}; vertical-align: top; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000;">
+                  <div style="font-weight: bold; font-size: 14px; color: #0f172a; text-align: center; margin-bottom: 6px;">${r.item.task}</div>
+                  <div style="font-size: 13px; color: #334155; line-height: 1.6; text-align: left; white-space: pre-wrap;">${r.item.brief}</div>
                 </td>
               `;
             } else {
@@ -1355,16 +1355,16 @@ class OfficeSimApp {
               const lBg = getBg(r.late?.weekendType);
 
               tableRowsHtml += `
-                <td style="width: 42.5%; padding: 10px 14px; vertical-align: top; border-right: 1px solid #000000; background: ${eBg};">
+                <td style="width: 44%; padding: 12px 18px; vertical-align: top; border-right: 1.5px solid #000000; background: ${eBg};">
                   ${r.early ? `
-                    <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px;">${r.early.task}</div>
-                    <div style="font-size: 12px; color: #334155; line-height: 1.5; text-align: left; white-space: pre-wrap;">${r.early.brief}</div>
+                    <div style="font-weight: bold; font-size: 14px; color: #0f172a; text-align: center; margin-bottom: 6px;">${r.early.task}</div>
+                    <div style="font-size: 13px; color: #334155; line-height: 1.6; text-align: left; white-space: pre-wrap;">${r.early.brief}</div>
                   ` : ''}
                 </td>
-                <td style="width: 42.5%; padding: 10px 14px; vertical-align: top; background: ${lBg};">
+                <td style="width: 44%; padding: 12px 18px; vertical-align: top; background: ${lBg};">
                   ${r.late ? `
-                    <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px;">${r.late.task}</div>
-                    <div style="font-size: 12px; color: #334155; line-height: 1.5; text-align: left; white-space: pre-wrap;">${r.late.brief}</div>
+                    <div style="font-weight: bold; font-size: 14px; color: #0f172a; text-align: center; margin-bottom: 6px;">${r.late.task}</div>
+                    <div style="font-size: 13px; color: #334155; line-height: 1.6; text-align: left; white-space: pre-wrap;">${r.late.brief}</div>
                   ` : ''}
                 </td>
               `;
@@ -1376,25 +1376,25 @@ class OfficeSimApp {
       }
 
       return `
-        <div style="display: flex; flex-direction: column; gap: 12px; font-family: sans-serif; max-height: 76vh; overflow-y: auto; padding-right: 4px;">
-          <!-- タブ切り替え -->
-          <div style="display: flex; gap: 8px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px;">
-            <button class="wf-tab-btn" data-tab="day" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">昼勤（平日）</button>
-            <button class="wf-tab-btn" data-tab="night" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">夜勤</button>
-            <button class="wf-tab-btn" data-tab="weekend" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">昼勤（土日祝）</button>
+        <div style="display: flex; flex-direction: column; gap: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%;">
+          <!-- 上部タブ -->
+          <div style="display: flex; gap: 10px; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 10px;">
+            <button class="wf-tab-btn" data-tab="day" style="padding: 8px 22px; border-radius: 8px; border: 1.5px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.2s;">昼勤（平日）</button>
+            <button class="wf-tab-btn" data-tab="night" style="padding: 8px 22px; border-radius: 8px; border: 1.5px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.2s;">夜勤</button>
+            <button class="wf-tab-btn" data-tab="weekend" style="padding: 8px 22px; border-radius: 8px; border: 1.5px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.2s;">昼勤（土日祝）</button>
           </div>
 
-          <!-- フロー表 -->
-          <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div style="padding: 12px; text-align: center; font-size: 18px; font-weight: bold; background: #ffffff; border-bottom: 2px solid #000000; letter-spacing: 0.05em; color: #000000;">
+          <!-- フロー表カード -->
+          <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); width: 100%;">
+            <div style="padding: 14px; text-align: center; font-size: 20px; font-weight: bold; background: #ffffff; border-bottom: 2.5px solid #000000; letter-spacing: 0.05em; color: #000000;">
               ${sheetTitle}
             </div>
-            <table style="width: 100%; border-collapse: collapse; font-family: sans-serif;">
+            <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; table-layout: fixed;">
               <thead>
-                <tr style="background: #f3f3f3; border-bottom: 2px solid #000000;">
-                  <th style="width: 15%; padding: 10px; border-right: 1.5px solid #000000; text-align: center; font-size: 13px; color: #000000;">時間帯</th>
-                  <th style="width: 42.5%; padding: 10px; border-right: 1.5px solid #000000; text-align: center; font-size: 13px; color: #000000;">早番</th>
-                  <th style="width: 42.5%; padding: 10px; text-align: center; font-size: 13px; color: #000000;">遅番</th>
+                <tr style="background: #f1f5f9; border-bottom: 2px solid #000000;">
+                  <th style="width: 12%; min-width: 90px; padding: 12px 8px; border-right: 2px solid #000000; text-align: center; font-size: 14px; color: #000000;">時間帯</th>
+                  <th style="width: 44%; padding: 12px 14px; border-right: 1.5px solid #000000; text-align: center; font-size: 14px; color: #000000;">早番</th>
+                  <th style="width: 44%; padding: 12px 14px; text-align: center; font-size: 14px; color: #000000;">遅番</th>
                 </tr>
               </thead>
               <tbody>
@@ -1408,8 +1408,26 @@ class OfficeSimApp {
 
     const mountModal = () => {
       this.showModal('📋 業務シフト 簡易マニュアルフロー', renderContent());
-      const modalEl = document.getElementById('modal-content');
-      modalEl?.querySelectorAll('.wf-tab-btn').forEach(btn => {
+
+      // モーダルウィンドウのサイズを画面幅92%（最大1200px）、高さ88vhに動的拡張
+      const modalWindow = document.querySelector('#info-modal .modal-window');
+      if (modalWindow) {
+        modalWindow.style.maxWidth = '1200px';
+        modalWindow.style.width = '92vw';
+        modalWindow.style.maxHeight = '88vh';
+        modalWindow.style.height = '88vh';
+        modalWindow.style.display = 'flex';
+        modalWindow.style.flexDirection = 'column';
+      }
+      const modalContent = document.getElementById('modal-content');
+      if (modalContent) {
+        modalContent.style.flex = '1';
+        modalContent.style.overflowY = 'auto';
+        modalContent.style.padding = '16px 24px';
+      }
+
+      // タブ切り替えのクリックイベント設定
+      modalContent?.querySelectorAll('.wf-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           activeTab = e.currentTarget.getAttribute('data-tab');
           mountModal();
@@ -1422,6 +1440,21 @@ class OfficeSimApp {
 
   closeModal() {
     document.getElementById('info-modal').classList.remove('active');
+    const modalWin = document.querySelector('#info-modal .modal-window');
+    if (modalWin) {
+      modalWin.style.maxWidth = '';
+      modalWin.style.width = '';
+      modalWin.style.maxHeight = '';
+      modalWin.style.height = '';
+      modalWin.style.display = '';
+      modalWin.style.flexDirection = '';
+    }
+    const mContent = document.getElementById('modal-content');
+    if (mContent) {
+      mContent.style.flex = '';
+      mContent.style.overflowY = '';
+      mContent.style.padding = '';
+    }
     this.isModalActive = false;
     this.collisionTimer = 0;
     this.collidingObject = null;
@@ -1535,6 +1568,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
