@@ -1385,11 +1385,11 @@ class OfficeSimApp {
           </div>
 
           <!-- フロー表カード -->
-          <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); width: 100%;">
+          <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 4px 16px rgba(0,0,0,0.06); width: 100%;">
             <div style="padding: 14px; text-align: center; font-size: 20px; font-weight: bold; background: #ffffff; border-bottom: 2.5px solid #000000; letter-spacing: 0.05em; color: #000000;">
               ${sheetTitle}
             </div>
-            <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; table-layout: fixed;">
+            <table style="width: 100%; min-width: 580px; border-collapse: collapse; font-family: sans-serif; table-layout: fixed;">
               <thead>
                 <tr style="background: #f1f5f9; border-bottom: 2px solid #000000;">
                   <th style="width: 12%; min-width: 90px; padding: 12px 8px; border-right: 2px solid #000000; text-align: center; font-size: 14px; color: #000000;">時間帯</th>
@@ -1413,9 +1413,9 @@ class OfficeSimApp {
       const modalWindow = document.querySelector('#info-modal .modal-window');
       if (modalWindow) {
         modalWindow.style.maxWidth = '1200px';
-        modalWindow.style.width = '92vw';
+        modalWindow.style.width = window.innerWidth <= 768 ? '96vw' : '92vw';
         modalWindow.style.maxHeight = '88vh';
-        modalWindow.style.height = '88vh';
+        modalWindow.style.height = window.innerWidth <= 768 ? '92vh' : '88vh';
         modalWindow.style.display = 'flex';
         modalWindow.style.flexDirection = 'column';
       }
@@ -1568,6 +1568,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
