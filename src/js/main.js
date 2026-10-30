@@ -1212,108 +1212,206 @@ class OfficeSimApp {
     }
   }
 
+  // --- GAS生成仕様完全準拠: 業務シフト 簡易マニュアルフロー表示 ---
   async openWorkflowsTableModal() {
     this.showLoading();
+    let workflows = [];
     try {
-      let rows = await this.sheetService.fetchWorkflows();
-      if (!rows || rows.length === 0) {
-        rows = [
-          { shift: '昼勤', timeGroup: '9:00~', time: '9:00', taskName: '朝刊取り', position: '早番', description: '新聞室から朝刊を回収し、連絡員席に並べる。共同・時事を29部コピー配布、メール送信。', briefexplanation: '新聞室から朝刊回収・配布', weekends: '' },
-          { shift: '昼勤', timeGroup: '9:00~', time: '9:00', taskName: '朝刊配り', position: '早番/遅番', description: '早番:5・7F、遅番:6Fへ朝刊を配達。', briefexplanation: '各階朝刊配り', weekends: '' },
-          { shift: '昼勤', timeGroup: '9:00~', time: '9:00', taskName: '朝刊あつかい配り', position: '早番', description: '論説委員会(+あつかい)・秘書室×2・経済部×3。18部コピー配布・メール送信。', briefexplanation: '論説・秘書室配り', weekends: '' },
-          { shift: '昼勤', timeGroup: '10:00~', time: '10:00', taskName: '外回り', position: '早番', description: 'Bag便〆切10:00。電力ビル→県庁→県警→市役所。3Fサポセン備品補充、3F総務郵便出し・回収、2F販売部石巻かほく回収。', briefexplanation: '行政各庁・外回り便回収', weekends: '' },
-          { shift: '昼勤', timeGroup: '13:00~', time: '13:00', taskName: '紙補充', position: '早番/遅番', description: '円卓の複合機2機のA3とA4を用紙補充する。', briefexplanation: '複合機コピー用紙補充', weekends: '' },
-          { shift: '昼勤', timeGroup: '16:00~', time: '16:00', taskName: 'メモ配り', position: '遅番', description: '【自社メモ】(5F)防災教育室長・文化部長・写真映像部長・経済部×3 (6F)メディアセンター長。メール・FAX送信。', briefexplanation: '自社・運動・友好社メモ配り', weekends: '' }
-        ];
-      }
-
-      let tableRowsHtml = '';
-      rows.forEach((r, idx) => {
-        tableRowsHtml += `
-          <tr data-index="${idx}" style="border-bottom: 1px solid #cbd5e1;">
-            <td style="padding: 6px; font-weight: bold; color: #0284c7;">${r.shift}</td>
-            <td style="padding: 6px;">${r.time}</td>
-            <td style="padding: 6px; font-weight: bold;">${r.taskName}</td>
-            <td style="padding: 6px;"><span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${r.position}</span></td>
-            <td style="padding: 6px; font-size: 11px; max-width: 260px; line-height: 1.3;">${r.description}</td>
-            <td style="padding: 6px; text-align: center;">
-              <button class="btn-wf-edit-row" data-index="${idx}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer;">編集</button>
-            </td>
-          </tr>
-        `;
-      });
-
-      const modalBodyHtml = `
-        <div style="max-height: 340px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
-            <thead style="background: #f8fafc; position: sticky; top: 0; border-bottom: 2px solid #cbd5e1;">
-              <tr>
-                <th style="padding: 6px;">シフト</th>
-                <th style="padding: 6px;">時間</th>
-                <th style="padding: 6px;">業務名</th>
-                <th style="padding: 6px;">担当</th>
-                <th style="padding: 6px;">業務内容・配布先</th>
-                <th style="padding: 6px;">操作</th>
-              </tr>
-            </thead>
-            <tbody>${tableRowsHtml}</tbody>
-          </table>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <button id="btn-wf-add-new" class="btn-dialog" style="background: #10b981; color: #fff; font-size: 12px; padding: 6px 12px;">+ 新規業務行の追加</button>
-          <button id="btn-wf-save-all" class="btn-dialog btn-primary" style="font-size: 12px; padding: 6px 16px;">スプレッドシートに保存</button>
-        </div>
-      `;
-
-      this.showModal('📋 業務情報一覧・簡易マニュアル（編集対応）', modalBodyHtml);
-
-      document.querySelectorAll('.btn-wf-edit-row').forEach(btn => {
-        btn.addEventListener('click', e => {
-          const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
-          const item = rows[idx];
-          const editHtml = `
-            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
-              <label><strong>時間:</strong> <input type="text" id="edit-wf-time" value="${item.time}" style="width: 100%; padding: 4px;"></label>
-              <label><strong>業務名:</strong> <input type="text" id="edit-wf-name" value="${item.taskName}" style="width: 100%; padding: 4px;"></label>
-              <label><strong>担当 (早番/遅番):</strong> <input type="text" id="edit-wf-pos" value="${item.position}" style="width: 100%; padding: 4px;"></label>
-              <label><strong>詳細説明:</strong> <textarea id="edit-wf-desc" rows="4" style="width: 100%; padding: 4px;">${item.description}</textarea></label>
-              <div style="text-align: right; margin-top: 6px;">
-                <button id="btn-wf-update-commit" class="btn-dialog btn-primary">行を更新</button>
-              </div>
-            </div>
-          `;
-          this.showModal(`✏️ 業務行の編集: ${item.taskName}`, editHtml);
-          document.getElementById('btn-wf-update-commit')?.addEventListener('click', () => {
-            item.time = document.getElementById('edit-wf-time').value;
-            item.taskName = document.getElementById('edit-wf-name').value;
-            item.position = document.getElementById('edit-wf-pos').value;
-            item.description = document.getElementById('edit-wf-desc').value;
-            this.openWorkflowsTableModal();
-          });
-        });
-      });
-
-      document.getElementById('btn-wf-add-new')?.addEventListener('click', () => {
-        rows.push({
-          shift: '昼勤', timeGroup: '新規', time: '10:00', taskName: '新規タスク', position: '早番',
-          description: '業務の詳細を入力してください。', briefexplanation: '概要', weekends: ''
-        });
-        this.openWorkflowsTableModal();
-      });
-
-      document.getElementById('btn-wf-save-all')?.addEventListener('click', async () => {
-        this.showLoading();
-        try {
-          await this.sheetService.saveWorkflows(rows);
-          alert('業務情報一覧をスプレッドシート（Workflows）に保存しました！');
-          this.closeModal();
-        } finally {
-          this.hideLoading();
-        }
-      });
+      const res = await this.sheetService.postToGas({ action: 'getWorkflows' });
+      workflows = (res && res.workflows) ? res.workflows : [];
+    } catch (e) {
+      console.error('業務フローデータ取得エラー:', e);
     } finally {
       this.hideLoading();
     }
+
+    let activeTab = 'day';
+
+    const renderContent = () => {
+      let filtered = [];
+      let sheetTitle = "";
+      let isWeekendSheet = false;
+
+      if (activeTab === 'day') {
+        sheetTitle = "昼勤 平日 簡易マニュアル";
+        filtered = workflows.filter(r => (r.shift || '').trim() === '昼勤');
+      } else if (activeTab === 'night') {
+        sheetTitle = "夜勤 簡易マニュアル";
+        filtered = workflows.filter(r => (r.shift || '').trim() === '夜勤');
+      } else if (activeTab === 'weekend') {
+        sheetTitle = "昼勤 土日祝 簡易マニュアル";
+        isWeekendSheet = true;
+        filtered = workflows.filter(r => {
+          const w = String(r.weekends || '').trim();
+          return (r.shift || '').trim() === '昼勤' && (w === '〇' || w === '土' || w === '日');
+        });
+      }
+
+      // 時間帯（timeGroup）ごとにグループ化
+      const timeGroups = [];
+      let currentGroup = null;
+
+      filtered.forEach(row => {
+        const timeFull = (row.timeGroup || row.time || 'その他').trim();
+        if (!currentGroup || currentGroup.timeFull !== timeFull) {
+          currentGroup = {
+            timeFull: timeFull,
+            timeDisplay: timeFull.split('～')[0],
+            items: []
+          };
+          timeGroups.push(currentGroup);
+        }
+
+        currentGroup.items.push({
+          pos: (row.position || '').trim(),
+          task: row.taskName || '名称未設定',
+          brief: row.briefexplanation || row.description || '',
+          weekendType: String(row.weekends || '').trim()
+        });
+      });
+
+      const getBg = (wType) => {
+        if (!isWeekendSheet) return '#ffffff';
+        if (wType === '土') return '#e1f5fe';
+        if (wType === '日') return '#ffebee';
+        return '#ffffff';
+      };
+
+      let tableRowsHtml = '';
+
+      if (timeGroups.length === 0) {
+        tableRowsHtml = `
+          <tr>
+            <td colspan="3" style="padding: 30px; text-align: center; color: #64748b; background: #ffffff;">
+              該当する業務フローデータがスプレッドシート（業務情報一覧）にありません。
+            </td>
+          </tr>
+        `;
+      } else {
+        timeGroups.forEach(g => {
+          // 時間帯内を順序通りに組み立て
+          // 早番・遅番のペア、および共通行の順序管理
+          const rowsInGroup = [];
+          let currentEarly = null;
+          let currentLate = null;
+
+          const flushPair = () => {
+            if (currentEarly || currentLate) {
+              rowsInGroup.push({ type: 'split', early: currentEarly, late: currentLate });
+              currentEarly = null;
+              currentLate = null;
+            }
+          };
+
+          g.items.forEach(item => {
+            if (item.pos === '共通' || item.pos.includes('共通')) {
+              flushPair();
+              rowsInGroup.push({ type: 'common', item: item });
+            } else if (item.pos.includes('早番')) {
+              if (currentEarly) flushPair();
+              currentEarly = item;
+            } else {
+              if (currentLate) flushPair();
+              currentLate = item;
+            }
+          });
+          flushPair();
+
+          // 1つの時間帯ブロックのHTML生成
+          rowsInGroup.forEach((r, idx) => {
+            const isFirst = (idx === 0);
+            const isLast = (idx === rowsInGroup.length - 1);
+            const borderBottom = isLast ? 'border-bottom: 2px solid #000000;' : 'border-bottom: 1px dotted #cbd5e1;';
+
+            tableRowsHtml += `<tr style="${borderBottom}">`;
+
+            // 時間帯セル（グループの先頭行で rowspan 結合）
+            if (isFirst) {
+              tableRowsHtml += `
+                <td rowspan="${rowsInGroup.length}" style="width: 15%; padding: 12px 6px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #fafafa; font-size: 14px; color: #0f172a;">
+                  ${g.timeDisplay}
+                </td>
+              `;
+            }
+
+            if (r.type === 'common') {
+              const bg = getBg(r.item.weekendType);
+              tableRowsHtml += `
+                <td colspan="2" style="padding: 10px 14px; background: ${bg}; vertical-align: top; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000;">
+                  <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px;">${r.item.task}</div>
+                  <div style="font-size: 12px; color: #334155; line-height: 1.5; text-align: left; white-space: pre-wrap;">${r.item.brief}</div>
+                </td>
+              `;
+            } else {
+              const eBg = getBg(r.early?.weekendType);
+              const lBg = getBg(r.late?.weekendType);
+
+              tableRowsHtml += `
+                <td style="width: 42.5%; padding: 10px 14px; vertical-align: top; border-right: 1px solid #000000; background: ${eBg};">
+                  ${r.early ? `
+                    <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px;">${r.early.task}</div>
+                    <div style="font-size: 12px; color: #334155; line-height: 1.5; text-align: left; white-space: pre-wrap;">${r.early.brief}</div>
+                  ` : ''}
+                </td>
+                <td style="width: 42.5%; padding: 10px 14px; vertical-align: top; background: ${lBg};">
+                  ${r.late ? `
+                    <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px;">${r.late.task}</div>
+                    <div style="font-size: 12px; color: #334155; line-height: 1.5; text-align: left; white-space: pre-wrap;">${r.late.brief}</div>
+                  ` : ''}
+                </td>
+              `;
+            }
+
+            tableRowsHtml += `</tr>`;
+          });
+        });
+      }
+
+      return `
+        <div style="display: flex; flex-direction: column; gap: 12px; font-family: sans-serif; max-height: 76vh; overflow-y: auto; padding-right: 4px;">
+          <!-- 上部タブ切り替え -->
+          <div style="display: flex; gap: 8px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px;">
+            <button class="wf-tab-btn" data-tab="day" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">昼勤（平日）</button>
+            <button class="wf-tab-btn" data-tab="night" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">夜勤</button>
+            <button class="wf-tab-btn" data-tab="weekend" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">昼勤（土日祝）</button>
+          </div>
+
+          <!-- スプレッドシート様式テーブル -->
+          <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            <div style="padding: 12px; text-align: center; font-size: 18px; font-weight: bold; background: #ffffff; border-bottom: 2px solid #000000; letter-spacing: 0.05em; color: #000000;">
+              ${sheetTitle}
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-family: sans-serif;">
+              <thead>
+                <tr style="background: #f3f3f3; border-bottom: 2px solid #000000;">
+                  <th style="width: 15%; padding: 10px; border-right: 1.5px solid #000000; text-align: center; font-size: 13px; color: #000000;">時間帯</th>
+                  <th style="width: 42.5%; padding: 10px; border-right: 1px solid #000000; text-align: center; font-size: 13px; color: #000000;">早番</th>
+                  <th style="width: 42.5%; padding: 10px; text-align: center; font-size: 13px; color: #000000;">遅番</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRowsHtml}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    };
+
+    const mountModal = () => {
+      this.showModal('📋 業務シフト 簡易マニュアルフロー', renderContent());
+      
+      // タブ切り替えのクリックイベント設定
+      const modalEl = document.getElementById('modal-content');
+      modalEl?.querySelectorAll('.wf-tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          activeTab = e.currentTarget.getAttribute('data-tab');
+          mountModal();
+        });
+      });
+    };
+
+    mountModal();
   }
 
   closeModal() {
@@ -1431,6 +1529,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
