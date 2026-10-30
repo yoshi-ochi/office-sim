@@ -115,8 +115,11 @@
   <div id="ui-layer">
     <header class="top-nav">
       <div class="nav-group">
-        <span class="nav-label">フロア:</span>
-        <select id="floor-select" class="floor-select">
+        
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="nav-label">フロア:</span>
+          <select id="floor-select" class="floor-select">
           <option value="1">1F エントランス・受付・新聞室</option>
           <option value="2">2F 販売部・総務・経理</option>
           <option value="3">3F 編集局・連絡員席</option>
@@ -126,6 +129,11 @@
           <option value="7">7F 論説委員会・役員室</option>
           <option value="8">8F カフェ・ラウンジ</option>
         </select>
+        </div>
+        <button id="btn-open-workflow-modal" style="width: fit-content; padding: 5px 12px; background: rgba(2, 132, 199, 0.95); border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 16px; font-size: 11px; font-weight: bold; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35); pointer-events: auto;">
+          📋 業務フロー
+        </button>
+      </div>
       </div>
 
       <div class="nav-group">
@@ -249,8 +257,8 @@
       document.body.appendChild(script);
     })();
   </script>
-  </div>
 </body>
 </html>
+
 
 
