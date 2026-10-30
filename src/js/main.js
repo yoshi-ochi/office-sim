@@ -1221,6 +1221,8 @@ class OfficeSimApp {
   // --- Workflows シート完全準拠: スマホ完全フィット（横スクロールなし）対応 ---
 
   // --- Workflows シート: 折り返しなし & ピンチイン・アウトズーム対応 ---
+
+  // --- Workflows シート: スプシ内の改行のみ保持 & 勝手な折り返しを完全排除 ---
   async openWorkflowsTableModal() {
     this.showLoading();
     let workflows = [];
@@ -1299,7 +1301,7 @@ class OfficeSimApp {
       if (timeGroups.length === 0) {
         tableRowsHtml = `
           <tr>
-            <td colspan="3" style="padding: 24px; text-align: center; color: #64748b; background: #ffffff; white-space: nowrap;">
+            <td colspan="3" style="padding: 24px; text-align: center; color: #64748b; background: #ffffff; white-space: pre;">
               該当するデータがスプレッドシート（Workflows）にありません。
             </td>
           </tr>
@@ -1335,24 +1337,23 @@ class OfficeSimApp {
           rowsInGroup.forEach((r, idx) => {
             const isFirst = (idx === 0);
             const isLast = (idx === rowsInGroup.length - 1);
-            const borderBottom = isLast ? 'border-bottom: 2px solid #000000;' : 'border-bottom: 1px dotted #94a3b8;';
+            const borderBottom = isLast ? 'border-bottom: 2.5px solid #000000;' : 'border-bottom: 1px dotted #94a3b8;';
 
             tableRowsHtml += `<tr style="${borderBottom}">`;
 
+            // 時間帯セル（スプシ内の改行のみ反映、勝手な自動折り返しなし）
             if (isFirst) {
               tableRowsHtml += `
-                <td rowspan="${rowsInGroup.length}" style="padding: 8px 12px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #f8fafc; font-size: 13px; color: #0f172a; white-space: nowrap;">
-                  ${g.timeDisplay}
-                </td>
+                <td rowspan="${rowsInGroup.length}" style="padding: 10px 14px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #f8fafc; font-size: 13px; color: #0f172a; white-space: pre; line-height: 1.4;">${g.timeDisplay}</td>
               `;
             }
 
             if (r.type === 'common') {
               const bg = getBg(r.item.weekendType);
               tableRowsHtml += `
-                <td colspan="2" style="padding: 6px 14px; background: ${bg}; vertical-align: middle; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000; white-space: nowrap;">
-                  <span style="font-weight: bold; font-size: 13px; color: #0f172a; margin-right: 10px;">${r.item.task}</span>
-                  <span style="font-size: 12px; color: #334155;">${r.item.brief}</span>
+                <td colspan="2" style="padding: 8px 16px; background: ${bg}; vertical-align: top; border-top: 1px dotted #000000; border-bottom: 1px dotted #000000;">
+                  <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px; white-space: pre; line-height: 1.4;">${r.item.task}</div>
+                  <div style="font-size: 12px; color: #334155; text-align: left; white-space: pre; line-height: 1.45;">${r.item.brief}</div>
                 </td>
               `;
             } else {
@@ -1360,16 +1361,16 @@ class OfficeSimApp {
               const lBg = getBg(r.late?.weekendType);
 
               tableRowsHtml += `
-                <td style="padding: 6px 14px; vertical-align: middle; border-right: 1px solid #000000; background: ${eBg}; white-space: nowrap;">
+                <td style="padding: 8px 16px; vertical-align: top; border-right: 1px solid #000000; background: ${eBg}; min-width: 220px;">
                   ${r.early ? `
-                    <span style="font-weight: bold; font-size: 13px; color: #0f172a; margin-right: 8px;">${r.early.task}</span>
-                    <span style="font-size: 12px; color: #334155;">${r.early.brief}</span>
+                    <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px; white-space: pre; line-height: 1.4;">${r.early.task}</div>
+                    <div style="font-size: 12px; color: #334155; text-align: left; white-space: pre; line-height: 1.45;">${r.early.brief}</div>
                   ` : ''}
                 </td>
-                <td style="padding: 6px 14px; vertical-align: middle; background: ${lBg}; white-space: nowrap;">
+                <td style="padding: 8px 16px; vertical-align: top; background: ${lBg}; min-width: 220px;">
                   ${r.late ? `
-                    <span style="font-weight: bold; font-size: 13px; color: #0f172a; margin-right: 8px;">${r.late.task}</span>
-                    <span style="font-size: 12px; color: #334155;">${r.late.brief}</span>
+                    <div style="font-weight: bold; font-size: 13px; color: #0f172a; text-align: center; margin-bottom: 4px; white-space: pre; line-height: 1.4;">${r.late.task}</div>
+                    <div style="font-size: 12px; color: #334155; text-align: left; white-space: pre; line-height: 1.45;">${r.late.brief}</div>
                   ` : ''}
                 </td>
               `;
@@ -1385,9 +1386,9 @@ class OfficeSimApp {
           <!-- 上部コントロール（タブ ＋ ズームバー） -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 6px; flex-wrap: wrap; gap: 6px;">
             <div style="display: flex; gap: 6px;">
-              <button class="wf-tab-btn" data-tab="day" style="padding: 5px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (平日)</button>
-              <button class="wf-tab-btn" data-tab="night" style="padding: 5px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">夜勤</button>
-              <button class="wf-tab-btn" data-tab="weekend" style="padding: 5px 12px; border-radius: 6px; border: 1px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (土日祝)</button>
+              <button class="wf-tab-btn" data-tab="day" style="padding: 6px 14px; border-radius: 6px; border: 1px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (平日)</button>
+              <button class="wf-tab-btn" data-tab="night" style="padding: 6px 14px; border-radius: 6px; border: 1px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">夜勤</button>
+              <button class="wf-tab-btn" data-tab="weekend" style="padding: 6px 14px; border-radius: 6px; border: 1px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap;">昼勤 (土日祝)</button>
             </div>
             
             <div style="display: flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 2px 6px; border-radius: 6px;">
@@ -1400,17 +1401,17 @@ class OfficeSimApp {
           <!-- スクロール＆タッチビューポート -->
           <div id="wf-viewport" style="flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;">
             <!-- ピンチ／ズーム変形コンテナ -->
-            <div id="wf-transform-box" style="transform-origin: 0 0; transform: scale(${currentScale}); width: fit-content; min-width: 100%; transition: transform 0.08s ease-out;">
-              <div style="background: #ffffff; border: 2px solid #000000; border-radius: 4px; overflow: hidden; width: fit-content; min-width: 100%;">
-                <div style="padding: 8px 16px; text-align: center; font-size: 15px; font-weight: bold; background: #ffffff; border-bottom: 2px solid #000000; letter-spacing: 0.04em; color: #000000; white-space: nowrap;">
+            <div id="wf-transform-box" style="transform-origin: 0 0; transform: scale(${currentScale}); width: max-content; transition: transform 0.08s ease-out;">
+              <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; width: max-content; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                <div style="padding: 10px 16px; text-align: center; font-size: 16px; font-weight: bold; background: #ffffff; border-bottom: 2.5px solid #000000; letter-spacing: 0.04em; color: #000000; white-space: pre;">
                   ${sheetTitle}
                 </div>
-                <table style="border-collapse: collapse; font-family: sans-serif; width: 100%;">
+                <table style="border-collapse: collapse; font-family: sans-serif; width: max-content; table-layout: auto;">
                   <thead>
-                    <tr style="background: #f1f5f9; border-bottom: 1.5px solid #000000;">
-                      <th style="padding: 8px 12px; border-right: 1.5px solid #000000; text-align: center; font-size: 12px; color: #000000; white-space: nowrap;">時間帯</th>
-                      <th style="padding: 8px 16px; border-right: 1px solid #000000; text-align: center; font-size: 12px; color: #000000; white-space: nowrap;">早番</th>
-                      <th style="padding: 8px 16px; text-align: center; font-size: 12px; color: #000000; white-space: nowrap;">遅番</th>
+                    <tr style="background: #f1f5f9; border-bottom: 2px solid #000000;">
+                      <th style="padding: 10px 14px; border-right: 1.5px solid #000000; text-align: center; font-size: 13px; color: #000000; white-space: pre;">時間帯</th>
+                      <th style="padding: 10px 18px; border-right: 1px solid #000000; text-align: center; font-size: 13px; color: #000000; white-space: pre;">早番</th>
+                      <th style="padding: 10px 18px; text-align: center; font-size: 13px; color: #000000; white-space: pre;">遅番</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1636,6 +1637,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
