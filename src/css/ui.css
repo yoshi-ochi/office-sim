@@ -80,7 +80,7 @@
   padding: 2px 6px;
   border-radius: 10px;
   border: 2px solid #fff;
-  display: none;
+  
 }
 
 /* バーチャルジョイスティック (左下) */
@@ -162,14 +162,14 @@
 
 .btn-rotate {
   background: linear-gradient(135deg, #ab47bc, #8e24aa);
-  display: none;
+  
 }
 
 /* --- 家具配置・エディタ関連UI --- */
 
 /* 1. カルーセル再展開用フローティング小アイコン (右上ヘッダー直下) */
 #btn-open-palette-fab {
-  display: none;
+  
   position: absolute;
   top: 68px;
   right: 18px;
@@ -210,7 +210,7 @@
   bottom: 20px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  display: none;
+  
   background: rgba(15, 23, 42, 0.95);
   backdrop-filter: blur(10px);
   border: 1.5px solid rgba(255, 255, 255, 0.2);
@@ -277,7 +277,7 @@
   width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
-  display: none;
+  
   align-items: center;
   justify-content: center;
   pointer-events: auto;
@@ -349,4 +349,36 @@
 .btn-primary {
   background: #2563eb;
   color: #fff;
+}
+
+
+/* --- レイヤー順序・ログイン完全グレー化パッチ --- */
+#ui-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#minimap-container {
+  z-index: 20 !important;
+}
+
+#furniture-carousel-modal {
+  z-index: 60 !important;
+}
+
+#info-modal {
+  z-index: 1000 !important;
+}
+
+#login-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: #334155 !important;
+  opacity: 1 !important;
+  z-index: 100000 !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
