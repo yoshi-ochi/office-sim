@@ -868,7 +868,7 @@ class OfficeSimApp {
       let dx = e.clientX - startX, dy = e.clientY - startY, dist = Math.hypot(dx, dy);
       const maxR = 45;
       if (dist > maxR) { dx = (dx / dist) * maxR; dy = (dy / dist) * maxR; dist = maxR; }
-      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      if (knob && knob.style) { knob.style.transform = `translate(${dx}px, ${dy}px)`; }
       if (dist < 1.0) {
         this.inputVector = { x: 0, y: 0 };
       } else {
@@ -879,7 +879,7 @@ class OfficeSimApp {
     });
     const endJoy = () => {
       active = false;
-      knob.style.transform = 'translate(0px, 0px)';
+      if (knob && knob.style) { knob.style.transform = 'translate(0px, 0px)'; }
       this.inputVector = { x: 0, y: 0 };
     };
     window.addEventListener('pointerup', endJoy);
@@ -1568,6 +1568,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
