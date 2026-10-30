@@ -1213,14 +1213,26 @@ class OfficeSimApp {
   }
 
   // --- GAS生成仕様完全準拠: 業務シフト 簡易マニュアルフロー表示 ---
+
+  // --- Workflows シート完全準拠: 業務シフト 簡易マニュアルフロー表示 ---
   async openWorkflowsTableModal() {
     this.showLoading();
     let workflows = [];
     try {
       const res = await this.sheetService.postToGas({ action: 'getWorkflows' });
-      workflows = (res && res.workflows) ? res.workflows : [];
+      const rawList = Array.isArray(res) ? res : (res?.workflows || res?.data || []);
+      
+      // Workflows シートのカラム（英名・和名両対応）を正規化
+      workflows = rawList.map(r => ({
+        shift: String(r.shift ?? r['シフト'] ?? '').trim(),
+        timeGroup: String(r.timeGroup ?? r['時間帯'] ?? r.time ?? '').trim(),
+        position: String(r.position ?? r['担当'] ?? r.role ?? '').trim(),
+        taskName: String(r.taskName ?? r['業務名'] ?? r.task ?? '').trim(),
+        briefexplanation: String(r.briefexplanation ?? r['概要'] ?? r.description ?? '').trim(),
+        weekends: String(r.weekends ?? r['土日祝'] ?? r.weekend ?? '').trim()
+      }));
     } catch (e) {
-      console.error('業務フローデータ取得エラー:', e);
+      console.error('Workflows データ取得エラー:', e);
     } finally {
       this.hideLoading();
     }
@@ -1234,39 +1246,39 @@ class OfficeSimApp {
 
       if (activeTab === 'day') {
         sheetTitle = "昼勤 平日 簡易マニュアル";
-        filtered = workflows.filter(r => (r.shift || '').trim() === '昼勤');
+        filtered = workflows.filter(r => r.shift === '昼勤');
       } else if (activeTab === 'night') {
         sheetTitle = "夜勤 簡易マニュアル";
-        filtered = workflows.filter(r => (r.shift || '').trim() === '夜勤');
+        filtered = workflows.filter(r => r.shift === '夜勤');
       } else if (activeTab === 'weekend') {
         sheetTitle = "昼勤 土日祝 簡易マニュアル";
         isWeekendSheet = true;
         filtered = workflows.filter(r => {
-          const w = String(r.weekends || '').trim();
-          return (r.shift || '').trim() === '昼勤' && (w === '〇' || w === '土' || w === '日');
+          const w = r.weekends;
+          return r.shift === '昼勤' && (w === '〇' || w === '土' || w === '日' || w === '祝');
         });
       }
 
-      // 時間帯（timeGroup）ごとにグループ化
+      // 時間帯（timeGroup）ごとに整理
       const timeGroups = [];
       let currentGroup = null;
 
       filtered.forEach(row => {
-        const timeFull = (row.timeGroup || row.time || 'その他').trim();
-        if (!currentGroup || currentGroup.timeFull !== timeFull) {
+        const tg = row.timeGroup || 'その他';
+        if (!currentGroup || currentGroup.timeFull !== tg) {
           currentGroup = {
-            timeFull: timeFull,
-            timeDisplay: timeFull.split('～')[0],
+            timeFull: tg,
+            timeDisplay: tg.split('～')[0],
             items: []
           };
           timeGroups.push(currentGroup);
         }
 
         currentGroup.items.push({
-          pos: (row.position || '').trim(),
+          pos: row.position,
           task: row.taskName || '名称未設定',
-          brief: row.briefexplanation || row.description || '',
-          weekendType: String(row.weekends || '').trim()
+          brief: row.briefexplanation || '',
+          weekendType: row.weekends
         });
       });
 
@@ -1283,14 +1295,12 @@ class OfficeSimApp {
         tableRowsHtml = `
           <tr>
             <td colspan="3" style="padding: 30px; text-align: center; color: #64748b; background: #ffffff;">
-              該当する業務フローデータがスプレッドシート（業務情報一覧）にありません。
+              該当するデータがスプレッドシート（Workflows）にありません。
             </td>
           </tr>
         `;
       } else {
         timeGroups.forEach(g => {
-          // 時間帯内を順序通りに組み立て
-          // 早番・遅番のペア、および共通行の順序管理
           const rowsInGroup = [];
           let currentEarly = null;
           let currentLate = null;
@@ -1317,7 +1327,6 @@ class OfficeSimApp {
           });
           flushPair();
 
-          // 1つの時間帯ブロックのHTML生成
           rowsInGroup.forEach((r, idx) => {
             const isFirst = (idx === 0);
             const isLast = (idx === rowsInGroup.length - 1);
@@ -1325,7 +1334,6 @@ class OfficeSimApp {
 
             tableRowsHtml += `<tr style="${borderBottom}">`;
 
-            // 時間帯セル（グループの先頭行で rowspan 結合）
             if (isFirst) {
               tableRowsHtml += `
                 <td rowspan="${rowsInGroup.length}" style="width: 15%; padding: 12px 6px; font-weight: bold; text-align: center; vertical-align: top; border-right: 1.5px solid #000000; background: #fafafa; font-size: 14px; color: #0f172a;">
@@ -1369,14 +1377,14 @@ class OfficeSimApp {
 
       return `
         <div style="display: flex; flex-direction: column; gap: 12px; font-family: sans-serif; max-height: 76vh; overflow-y: auto; padding-right: 4px;">
-          <!-- 上部タブ切り替え -->
+          <!-- タブ切り替え -->
           <div style="display: flex; gap: 8px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px;">
             <button class="wf-tab-btn" data-tab="day" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'day' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'day' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'day' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">昼勤（平日）</button>
             <button class="wf-tab-btn" data-tab="night" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'night' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'night' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'night' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">夜勤</button>
             <button class="wf-tab-btn" data-tab="weekend" style="padding: 7px 18px; border-radius: 6px; border: 1.5px solid ${activeTab === 'weekend' ? '#0284c7' : '#cbd5e1'}; background: ${activeTab === 'weekend' ? '#0284c7' : '#ffffff'}; color: ${activeTab === 'weekend' ? '#ffffff' : '#475569'}; font-size: 12px; font-weight: bold; cursor: pointer;">昼勤（土日祝）</button>
           </div>
 
-          <!-- スプレッドシート様式テーブル -->
+          <!-- フロー表 -->
           <div style="background: #ffffff; border: 2.5px solid #000000; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
             <div style="padding: 12px; text-align: center; font-size: 18px; font-weight: bold; background: #ffffff; border-bottom: 2px solid #000000; letter-spacing: 0.05em; color: #000000;">
               ${sheetTitle}
@@ -1385,7 +1393,7 @@ class OfficeSimApp {
               <thead>
                 <tr style="background: #f3f3f3; border-bottom: 2px solid #000000;">
                   <th style="width: 15%; padding: 10px; border-right: 1.5px solid #000000; text-align: center; font-size: 13px; color: #000000;">時間帯</th>
-                  <th style="width: 42.5%; padding: 10px; border-right: 1px solid #000000; text-align: center; font-size: 13px; color: #000000;">早番</th>
+                  <th style="width: 42.5%; padding: 10px; border-right: 1.5px solid #000000; text-align: center; font-size: 13px; color: #000000;">早番</th>
                   <th style="width: 42.5%; padding: 10px; text-align: center; font-size: 13px; color: #000000;">遅番</th>
                 </tr>
               </thead>
@@ -1400,8 +1408,6 @@ class OfficeSimApp {
 
     const mountModal = () => {
       this.showModal('📋 業務シフト 簡易マニュアルフロー', renderContent());
-      
-      // タブ切り替えのクリックイベント設定
       const modalEl = document.getElementById('modal-content');
       modalEl?.querySelectorAll('.wf-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1529,6 +1535,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
