@@ -711,6 +711,7 @@ class OfficeSimApp {
       });
     }
 
+    document.getElementById('btn-open-workflow-modal')?.addEventListener('click', () => this.openWorkflowsTableModal());
     document.getElementById('btn-account-manage')?.addEventListener('click', () => {
       if (!this.currentUser) return;
       this.showModal('👤 アカウント管理情報', `
@@ -1430,6 +1431,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
