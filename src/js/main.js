@@ -1247,7 +1247,7 @@ class OfficeSimApp {
     }
 
     let activeTab = 'day';
-    let currentScale = 1.0;
+    let currentScale = window.innerWidth <= 768 ? 0.5 : 1.0;
 
     const renderContent = () => {
       let filtered = [];
@@ -1395,7 +1395,7 @@ class OfficeSimApp {
             <div style="display: flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 2px 6px; border-radius: 6px;">
               <button id="wf-zoom-fit" style="border: none; background: #0284c7; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">全体</button>
               <button id="wf-zoom-out" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔍-</button>
-              <button id="wf-zoom-reset" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #0284c7; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><span id="wf-zoom-percent">100%</span></button>
+              <button id="wf-zoom-reset" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer; color: #0284c7; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><span id="wf-zoom-percent">50%</span></button>
               <button id="wf-zoom-in" style="border: none; background: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔍+</button>
             </div>
           </div>
@@ -1468,13 +1468,8 @@ class OfficeSimApp {
 
       // 画面幅に合わせて表全体が100%収まる倍率を自動算出
       const fitToWidth = () => {
-        if (!viewport || !cardInner) return;
-        const availableW = viewport.clientWidth - 4;
-        const tableW = cardInner.scrollWidth || 1;
-        if (tableW > 0 && availableW > 0) {
-          const fitScale = Math.min(1.0, availableW / tableW);
-          applyScale(fitScale);
-        }
+        const defaultScale = isMobile ? 0.5 : 1.0;
+        applyScale(defaultScale);
       };
 
       // 初回描画直後に自動フィット実行
@@ -1484,7 +1479,7 @@ class OfficeSimApp {
       document.getElementById('wf-zoom-fit')?.addEventListener('click', fitToWidth);
       document.getElementById('wf-zoom-in')?.addEventListener('click', () => applyScale(currentScale + 0.1));
       document.getElementById('wf-zoom-out')?.addEventListener('click', () => applyScale(currentScale - 0.1));
-      document.getElementById('wf-zoom-reset')?.addEventListener('click', () => applyScale(1.0));
+      document.getElementById('wf-zoom-reset')?.addEventListener('click', () => applyScale(isMobile ? 0.5 : 1.0));
 
       // 2本指ピンチ操作
       let initialDistance = 0;
@@ -1653,6 +1648,7 @@ if (document.readyState === 'loading') {
 } else {
   startOfficeSimApp();
 }
+
 
 
 
